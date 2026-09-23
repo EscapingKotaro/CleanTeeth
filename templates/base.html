@@ -1,0 +1,237 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dento CRM{% endblock %}</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js для dropdown -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-sky-50 min-h-screen flex flex-col">
+
+    <!-- ==================== ХЕДЕР ==================== -->
+    <header class="bg-white border-b border-sky-100 shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+
+                <!-- Логотип -->
+                <a href="{% url 'crm:dashboard' %}" class="flex items-center space-x-2">
+                    <div class="w-9 h-9 bg-sky-500 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-bold text-sky-900">Dento CRM</span>
+                </a>
+
+                {% if user.is_authenticated %}
+                <!-- Навигация -->
+                <nav class="hidden md:flex items-center space-x-1">
+
+                    {% if user.role == 'CURATOR' or user.role == 'SENIOR_CURATOR' %}
+                        <a href="{% url 'crm:cases_list' %}"
+                           class="px-3 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'cases_list' %}bg-sky-100 text-sky-900{% else %}text-sky-700 hover:bg-sky-50{% endif %} transition">
+                            Кейсы
+                        </a>
+                        <a href="{% url 'crm:tasks_list' %}"
+                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
+                            Задачи
+                        </a>
+                        <a href="{% url 'crm:dashboard' %}"
+                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
+                            Дашборд
+                        </a>
+                        <a href="{% url 'crm:motivation' %}"
+                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
+                            Мотивация
+                        </a>
+                    {% endif %}
+
+                    {% if user.role == 'SENIOR_CURATOR' or user.role == 'MANAGER' or user.role == 'ADMIN' %}
+                        <a href="{% url 'crm:team_control' %}"
+                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
+                            Контроль отдела
+                        </a>
+                    {% endif %}
+
+                    {% if user.role == 'MANAGER' or user.role == 'ADMIN' %}
+                        <a href="{% url 'crm:analytics' %}"
+                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
+                            Аналитика
+                        </a>
+                        <a href="{% url 'crm:document_checks' %}"
+                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
+                            Реестр проверок
+                        </a>
+                    {% endif %}
+
+                    {% if user.role == 'ADMIN' %}
+                        <a href="{% url 'crm:settings' %}"
+                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
+                            Настройки
+                        </a>
+                    {% endif %}
+
+                </nav>
+
+                <!-- Dropdown пользователя -->
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open"
+                            class="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-sky-50 transition">
+                        <div class="w-8 h-8 bg-sky-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                            {{ user.first_name|first|default:user.username|first|upper }}
+                        </div>
+                        <span class="hidden sm:block text-sm font-medium text-sky-900">
+                            {{ user.get_full_name|default:user.username }}
+                        </span>
+                        <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open"
+                         x-cloak
+                         @click.away="open = false"
+                         x-transition
+                         class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-sky-100 py-1">
+
+                        <div class="px-4 py-3 border-b border-sky-100">
+                            <p class="text-sm font-medium text-sky-900">{{ user.get_full_name|default:user.username }}</p>
+                            <p class="text-xs text-sky-600">{{ user.get_role_display }}</p>
+                        </div>
+
+                        <a href="{% url 'crm:password_change' %}"
+                           class="flex items-center px-4 py-2 text-sm text-sky-700 hover:bg-sky-50 transition">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                            </svg>
+                            Сменить пароль
+                        </a>
+
+                        <form method="post" action="{% url 'crm:logout' %}">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                                </svg>
+                                Выйти
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                {% else %}
+                <a href="{% url 'crm:login' %}"
+                   class="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition text-sm font-medium">
+                    Войти
+                </a>
+                {% endif %}
+
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== ОСНОВНОЙ БЛОК ==================== -->
+    {% if use_sidebar %}
+    <!-- С сайдбарами -->
+    <div class="flex-1 max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex gap-6">
+
+            <!-- Левый сайдбар (Задачи) -->
+            <aside class="hidden xl:block w-80 flex-shrink-0">
+                {% block sidebar_left %}
+                <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4 sticky top-24">
+                    <h3 class="text-lg font-bold text-sky-900 mb-4">План дня</h3>
+                    <p class="text-sm text-sky-600">Задачи на сегодня</p>
+                </div>
+                {% endblock %}
+            </aside>
+
+            <!-- Центральный контент -->
+            <main class="flex-1 min-w-0">
+                {% block content %}{% endblock %}
+            </main>
+
+            <!-- Правый сайдбар (Мотивация) -->
+            <!-- Правый сайдбар (Мотивация) -->
+<aside class="hidden xl:block w-80 flex-shrink-0">
+    {% block sidebar_right %}
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4 sticky top-24">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-sky-900">Мотивация</h3>
+            <a href="{% url 'crm:motivation' %}" class="text-xs text-sky-600 hover:text-sky-800">Подробнее →</a>
+        </div>
+
+        {% if current_motivation %}
+        <div class="space-y-3">
+            <div>
+                <p class="text-xs text-sky-600 mb-1">{{ current_motivation.period_label }} · План</p>
+                <p class="text-lg font-bold text-sky-900">{{ current_motivation.plan_amount|floatformat:0 }} ₽</p>
+            </div>
+            <div>
+                <p class="text-xs text-sky-600 mb-1">Факт (К1)</p>
+                <p class="text-lg font-bold text-green-600">{{ current_motivation.fact_amount|floatformat:0 }} ₽</p>
+            </div>
+            <div>
+                <p class="text-xs text-sky-600 mb-1">Выполнение</p>
+                <div class="w-full bg-sky-100 rounded-full h-2">
+                    <div class="bg-green-500 h-2 rounded-full transition-all"
+                         style="width: {{ current_motivation.completion_percent|floatformat:0 }}%"></div>
+                </div>
+                <div class="flex justify-between mt-1">
+                    <p class="text-sm font-medium text-sky-900">{{ current_motivation.completion_percent }}%</p>
+                    <p class="text-xs text-sky-500">Темп: {{ current_motivation.pace_percent }}%</p>
+                </div>
+            </div>
+            <div class="pt-2 border-t border-sky-100">
+                <div class="flex justify-between text-sm">
+                    <span class="text-sky-600">Бонусы сейчас:</span>
+                    <span class="font-bold text-sky-900">{{ current_motivation.total_bonus|floatformat:0 }} ₽</span>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-sm text-sky-500">План на месяц не назначен. Обратитесь к управляющей.</p>
+        {% endif %}
+    </div>
+    {% endblock %}
+</aside>
+
+        </div>
+    </div>
+    {% else %}
+    <!-- Без сайдбаров -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content_full %}{% endblock %}
+    </main>
+    {% endif %}
+
+    <!-- ==================== ФУТЕР ==================== -->
+    <footer class="bg-white border-t border-sky-100 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
+                <p class="text-sm text-sky-600">
+                    © 2026 <span class="font-semibold text-sky-700">JuliDev</span>. Все права защищены.
+                </p>
+                <p class="text-xs text-sky-500">
+                    CRM кураторского отдела · Стоматологическая клиника
+                </p>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>

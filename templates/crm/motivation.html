@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} · Dento CRM{% endblock %}
+
+{% block content_full %}
+<div class="space-y-6">
+    <h1 class="text-2xl font-bold text-sky-900">Мотивация</h1>
+
+    {% if own_plan %}
+    <!-- ============ КАРТОЧКИ ПОКАЗАТЕЛЕЙ ============ -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-5">
+            <p class="text-xs text-sky-600 mb-1">Индивидуальный план</p>
+            <p class="text-2xl font-bold text-sky-900">{{ own_plan.plan_amount|floatformat:0 }} ₽</p>
+            <p class="text-xs text-sky-500 mt-1">{{ own_plan.period_label }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-5">
+            <p class="text-xs text-sky-600 mb-1">Факт (К1)</p>
+            <p class="text-2xl font-bold text-green-600">{{ own_plan.fact_amount|floatformat:0 }} ₽</p>
+            <p class="text-xs text-sky-500 mt-1">Сумма согласованных планов</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-5">
+            <p class="text-xs text-sky-600 mb-1">Остаток до плана</p>
+            <p class="text-2xl font-bold text-sky-900">{{ own_plan.remaining|floatformat:0 }} ₽</p>
+            <p class="text-xs text-sky-500 mt-1">Прогноз: {{ own_plan.forecast|floatformat:0 }} ₽</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-5">
+            <p class="text-xs text-sky-600 mb-1">Темп</p>
+            <p class="text-2xl font-bold {% if own_plan.pace_percent >= 100 %}text-green-600{% else %}text-yellow-600{% endif %}">
+                {{ own_plan.pace_percent }}%
+            </p>
+            <p class="text-xs text-sky-500 mt-1">Относительно даты месяца</p>
+        </div>
+    </div>
+
+    <!-- ============ ПРОГРЕСС ============ -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-bold text-sky-900">Выполнение плана</h2>
+            <span class="text-2xl font-bold text-sky-900">{{ own_plan.completion_percent }}%</span>
+        </div>
+        <div class="w-full bg-sky-100 rounded-full h-4">
+            <div class="bg-gradient-to-r from-sky-400 to-sky-600 h-4 rounded-full transition-all"
+                 style="width: {{ own_plan.completion_percent|floatformat:0 }}%"></div>
+        </div>
+    </div>
+
+    <!-- ============ РАСЧЁТ МОТИВАЦИИ (таблица из ТЗ п.14) ============ -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 overflow-hidden">
+        <div class="p-6 border-b border-sky-100">
+            <h2 class="text-lg font-bold text-sky-900">Расчёт мотивации</h2>
+            <p class="text-sm text-sky-500 mt-1">Формулы бонусов: пороговая модель (уточняется по файлу заказчика)</p>
+        </div>
+        <table class="min-w-full divide-y divide-sky-100">
+            <tbody class="divide-y divide-sky-50 text-sm">
+                <tr class="hover:bg-sky-50">
+                    <td class="px-6 py-3 text-sky-700">Индивидуальный план</td>
+                    <td class="px-6 py-3 text-right font-medium text-sky-900">{{ own_plan.plan_amount|floatformat:2 }} ₽</td>
+                </tr>
+                <tr class="hover:bg-sky-50">
+                    <td class="px-6 py-3 text-sky-700">Сумма К1 (факт)</td>
+                    <td class="px-6 py-3 text-right font-medium text-green-600">{{ own_plan.fact_amount|floatformat:2 }} ₽</td>
+                </tr>
+                <tr class="hover:bg-sky-50">
+                    <td class="px-6 py-3 text-sky-700">Корректировки</td>
+                    <td class="px-6 py-3 text-right font-medium text-sky-900">{{ own_plan.adjustments|floatformat:2 }} ₽</td>
+                </tr>
+                <tr class="hover:bg-sky-50">
+                    <td class="px-6 py-3 text-sky-700">Заказ-наряды</td>
+                    <td class="px-6 py-3 text-right font-medium text-sky-900">{{ own_plan.workorders_amount|floatformat:2 }} ₽</td>
+                </tr>
+                <tr class="bg-sky-50/50">
+                    <td class="px-6 py-3 text-sky-700">
+                        Бонус 1 <span class="text-xs text-sky-500">(≥ {{ own_plan.BONUS_1_THRESHOLD|floatformat:0 }}%)</span>
+                    </td>
+                    <td class="px-6 py-3 text-right font-medium {% if own_plan.bonus_1 > 0 %}text-green-600{% else %}text-sky-400{% endif %}">
+                        {{ own_plan.bonus_1|floatformat:2 }} ₽
+                    </td>
+                </tr>
+                <tr class="bg-sky-50/50">
+                    <td class="px-6 py-3 text-sky-700">
+                        Бонус 2 <span class="text-xs text-sky-500">(≥ {{ own_plan.BONUS_2_THRESHOLD|floatformat:0 }}%)</span>
+                    </td>
+                    <td class="px-6 py-3 text-right font-medium {% if own_plan.bonus_2 > 0 %}text-green-600{% else %}text-sky-400{% endif %}">
+                        {{ own_plan.bonus_2|floatformat:2 }} ₽
+                    </td>
+                </tr>
+                <tr class="bg-sky-50/50">
+                    <td class="px-6 py-3 text-sky-700">
+                        Бонус 3 <span class="text-xs text-sky-500">(≥ {{ own_plan.BONUS_3_THRESHOLD|floatformat:0 }}%)</span>
+                    </td>
+                    <td class="px-6 py-3 text-right font-medium {% if own_plan.bonus_3 > 0 %}text-green-600{% else %}text-sky-400{% endif %}">
+                        {{ own_plan.bonus_3|floatformat:2 }} ₽
+                    </td>
+                </tr>
+                <tr class="border-t-2 border-sky-200">
+                    <td class="px-6 py-3 font-bold text-sky-900">Итог бонусов</td>
+                    <td class="px-6 py-3 text-right font-bold text-sky-900">{{ own_plan.total_bonus|floatformat:2 }} ₽</td>
+                </tr>
+                <tr class="bg-green-50">
+                    <td class="px-6 py-4 font-bold text-green-900">Итог к выплате</td>
+                    <td class="px-6 py-4 text-right font-bold text-green-900 text-lg">{{ own_plan.total_payout|floatformat:2 }} ₽</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-12 text-center">
+        <p class="text-sky-600">План на текущий месяц не назначен. Обратитесь к управляющей.</p>
+    </div>
+    {% endif %}
+
+    <!-- ============ КОМАНДА (для старшего куратора / управляющей) ============ -->
+    {% if is_team_view and team_plans %}
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 overflow-hidden">
+        <div class="p-6 border-b border-sky-100">
+            <h2 class="text-lg font-bold text-sky-900">Мотивация команды · текущий месяц</h2>
+        </div>
+        <table class="min-w-full divide-y divide-sky-100">
+            <thead class="bg-sky-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-sky-600 uppercase">Куратор</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">План</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">Факт (К1)</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">%</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">Темп</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">Бонусы</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-sky-50 text-sm">
+                {% for p in team_plans %}
+                <tr class="hover:bg-sky-50">
+                    <td class="px-6 py-3 font-medium text-sky-900">{{ p.curator.get_full_name|default:p.curator.username }}</td>
+                    <td class="px-6 py-3 text-right text-sky-900">{{ p.plan_amount|floatformat:0 }} ₽</td>
+                    <td class="px-6 py-3 text-right text-green-600 font-medium">{{ p.fact_amount|floatformat:0 }} ₽</td>
+                    <td class="px-6 py-3 text-right font-bold text-sky-900">{{ p.completion_percent }}%</td>
+                    <td class="px-6 py-3 text-right {% if p.pace_percent >= 100 %}text-green-600{% else %}text-yellow-600{% endif %}">{{ p.pace_percent }}%</td>
+                    <td class="px-6 py-3 text-right font-medium text-sky-900">{{ p.total_bonus|floatformat:0 }} ₽</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- ============ ИСТОРИЯ ============ -->
+    {% if history %}
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 overflow-hidden">
+        <div class="p-6 border-b border-sky-100">
+            <h2 class="text-lg font-bold text-sky-900">История за 12 месяцев</h2>
+        </div>
+        <table class="min-w-full divide-y divide-sky-100">
+            <thead class="bg-sky-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-sky-600 uppercase">Период</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">План</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">Факт</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">%</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase">К выплате</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-sky-50 text-sm">
+                {% for h in history %}
+                <tr class="hover:bg-sky-50">
+                    <td class="px-6 py-3 text-sky-900">{{ h.period_label }}</td>
+                    <td class="px-6 py-3 text-right text-sky-900">{{ h.plan_amount|floatformat:0 }} ₽</td>
+                    <td class="px-6 py-3 text-right text-green-600">{{ h.fact_amount|floatformat:0 }} ₽</td>
+                    <td class="px-6 py-3 text-right font-medium">{{ h.completion_percent }}%</td>
+                    <td class="px-6 py-3 text-right font-bold text-sky-900">{{ h.total_payout|floatformat:0 }} ₽</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

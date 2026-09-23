@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Вход · Dento CRM{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-200px)] flex items-center justify-center">
+    <div class="w-full max-w-md">
+
+        <!-- Карточка входа -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-8">
+
+            <!-- Логотип -->
+            <div class="flex justify-center mb-6">
+                <div class="w-16 h-16 bg-sky-500 rounded-2xl flex items-center justify-center">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Заголовок -->
+            <h1 class="text-2xl font-bold text-center text-sky-900 mb-2">
+                Добро пожаловать
+            </h1>
+            <p class="text-center text-sky-600 mb-8">
+                Войдите в систему Dento CRM
+            </p>
+
+            <!-- Ошибки -->
+            {% if form.errors %}
+            <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p class="text-sm text-red-700">
+                    Неверный логин или пароль. Попробуйте ещё раз.
+                </p>
+            </div>
+            {% endif %}
+
+            <!-- Форма -->
+            <form method="post" class="space-y-5">
+                {% csrf_token %}
+
+                <!-- Логин -->
+                <div>
+                    <label for="id_username" class="block text-sm font-medium text-sky-900 mb-2">
+                        Логин
+                    </label>
+                    <input type="text"
+                           name="username"
+                           id="id_username"
+                           required
+                           autofocus
+                           class="w-full px-4 py-2.5 border border-sky-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition"
+                           placeholder="Введите логин">
+                </div>
+
+                <!-- Пароль -->
+                <div>
+                    <label for="id_password" class="block text-sm font-medium text-sky-900 mb-2">
+                        Пароль
+                    </label>
+                    <input type="password"
+                           name="password"
+                           id="id_password"
+                           required
+                           class="w-full px-4 py-2.5 border border-sky-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition"
+                           placeholder="Введите пароль">
+                </div>
+
+                <!-- Кнопка входа -->
+                <button type="submit"
+                        class="w-full bg-sky-500 text-white py-2.5 rounded-lg hover:bg-sky-600 transition font-medium shadow-sm">
+                    Войти в систему
+                </button>
+
+            </form>
+
+        </div>
+
+        <!-- Подсказка -->
+        <p class="text-center text-sm text-sky-600 mt-6">
+            Проблемы со входом? Обратитесь к администратору.
+        </p>
+
+    </div>
+</div>
+{% endblock %}

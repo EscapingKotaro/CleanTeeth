@@ -24,5 +24,5 @@ urlpatterns = [
     path("patient/create/", views.patient_create, name="patient_create"),
     path("patient/<int:patient_id>/update/", views.patient_update, name="patient_update"),
     path("plan/<int:plan_id>/update/", views.plan_update, name="plan_update"),
-    path("case/create/", views.case_create, name="case_create"),
+    path("plan/create/", views.plan_create, name="plan_create"),
 ]

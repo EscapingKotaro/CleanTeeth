@@ -89,11 +89,14 @@ def cases_list(request):
         "statuses": statuses,
         "current_status": status_filter,
         "current_sort": sort_by,
-        "use_sidebar": True,  # ← флаг для шаблона
-        # В views.cases_list добавь в return render:
-    "patients": Patient.objects.all()[:50], # Ограничим для производительности
-    "plans": TreatmentPlan.objects.all()[:50],
-    "curators": CustomUser.objects.filter(role__in=['CURATOR', 'SENIOR_CURATOR']),
+        "use_sidebar": True,
+        # Данные для модалок
+        "patients": Patient.objects.all().order_by("last_name")[:200],
+        "plans": TreatmentPlan.objects.all().order_by("-id")[:200],
+        "doctors": Doctor.objects.filter(is_active=True).order_by("last_name"),
+        "curators": CustomUser.objects.filter(
+            role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
+        ),
     })
 
 
@@ -254,3 +257,61 @@ def case_create(request):
         )
         messages.success(request, "Кейс успешно создан")
     return redirect('crm:cases_list')
+
+
+from django.db import transaction
+from django.contrib import messages
+from django.shortcuts import redirect
+from decimal import Decimal
+
+
+def _to_decimal(value):
+    """Безопасно парсим сумму из формы в Decimal."""
+    try:
+        return Decimal(str(value)) if value else Decimal("0")
+    except Exception:
+        return Decimal("0")
+
+
+@login_required
+def plan_create(request):
+    """
+    Создаёт план лечения и ОДНОВРЕМЕННО кураторский кейс,
+    связывая пациент + план + куратор (по умолчанию — тот, кто создаёт).
+    """
+    if request.method != "POST":
+        return redirect("crm:cases_list")
+
+    patient_id = request.POST.get("patient_id")
+    if not patient_id:
+        messages.error(request, "Не выбран пациент. План не создан.")
+        return redirect("crm:cases_list")
+
+    with transaction.atomic():
+        # 1. Создаём план лечения
+        plan = TreatmentPlan.objects.create(
+            patient_id=patient_id,
+            doctor_id=request.POST.get("doctor_id") or None,
+            initial_sum=_to_decimal(request.POST.get("initial_sum")),
+            presentation_sum=_to_decimal(request.POST.get("presentation_sum")),
+            agreed_sum=_to_decimal(request.POST.get("agreed_sum")),
+            plan_type=request.POST.get("plan_type", ""),
+        )
+
+        # 2. Куратор: по умолчанию тот, кто создаёт план
+        curator_id = request.POST.get("curator_id") or request.user.id
+
+        # 3. Создаём кейс и связываем всё вместе
+        case = CuratorCase.objects.create(
+            patient=plan.patient,
+            plan=plan,
+            curator_id=curator_id,
+            status=CuratorCase.Status.TRANSFERRED,
+        )
+
+        # TODO (автоматизация №18 из ТЗ): создать первую задачу для кейса,
+        # когда добавим модель Task. Например:
+        # Task.objects.create(case=case, assignee=curator, ...)
+
+    messages.success(request, f"План #{plan.id} и кейс #{case.id} созданы.")
+    return redirect("crm:cases_list")

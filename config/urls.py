@@ -5,7 +5,6 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("crm/", include("crm.urls")),
     path("", include("crm.urls")),  # корень тоже ведёт в CRM
 ]
 

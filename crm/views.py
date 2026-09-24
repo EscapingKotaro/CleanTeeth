@@ -220,17 +220,31 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from .models import Patient, TreatmentPlan
 
+from django.utils.dateparse import parse_date
+
 @login_required
 def patient_create(request):
-    if request.method == 'POST':
-        Patient.objects.create(
-            last_name=request.POST.get('last_name'),
-            first_name=request.POST.get('first_name'),
-            phone=request.POST.get('phone'),
-            comment=request.POST.get('comment', '')
-        )
-        messages.success(request, "Пациент успешно создан")
-    return redirect('crm:cases_list')
+    if request.method != "POST":
+        return redirect("crm:cases_list")
+
+    last_name = request.POST.get("last_name", "").strip()
+    first_name = request.POST.get("first_name", "").strip()
+    phone = request.POST.get("phone", "").strip()
+
+    if not last_name or not first_name or not phone:
+        messages.error(request, "Фамилия, имя и телефон обязательны.")
+        return redirect("crm:cases_list")
+
+    Patient.objects.create(
+        last_name=last_name,
+        first_name=first_name,
+        middle_name=request.POST.get("middle_name", "").strip(),
+        phone=phone,
+        birth_date=parse_date(request.POST.get("birth_date", "")) or None,
+        comment=request.POST.get("comment", "").strip(),
+    )
+    messages.success(request, f"Пациент {last_name} {first_name} создан.")
+    return redirect("crm:cases_list")
 
 @login_required
 def patient_update(request, patient_id):

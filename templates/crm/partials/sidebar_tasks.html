@@ -1,0 +1,61 @@
+<div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4 sticky top-24">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-sky-900">План дня</h3>
+        <a href="{% url 'crm:tasks_list' %}" class="text-xs text-sky-600 hover:text-sky-800">Все задачи →</a>
+    </div>
+
+    {% if sidebar_tasks.overdue %}
+    <div class="mb-4">
+        <p class="text-xs font-semibold text-red-600 uppercase mb-2">Просрочено</p>
+        <div class="space-y-2">
+            {% for task in sidebar_tasks.overdue %}
+            <a href="{% url 'crm:case_detail' task.case.id %}"
+               class="block p-2.5 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition">
+                <p class="text-sm font-medium text-red-800 truncate">{{ task.description|default:task.get_task_type_display }}</p>
+                <p class="text-xs text-red-600 mt-0.5">
+                    {{ task.case.patient.last_name }} {{ task.case.patient.first_name|first }}. · {{ task.due_date|date:"d.m H:i" }}
+                </p>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if sidebar_tasks.today %}
+    <div class="mb-4">
+        <p class="text-xs font-semibold text-sky-700 uppercase mb-2">Сегодня</p>
+        <div class="space-y-2">
+            {% for task in sidebar_tasks.today %}
+            <a href="{% url 'crm:case_detail' task.case.id %}"
+               class="block p-2.5 bg-sky-50 border border-sky-100 rounded-lg hover:bg-sky-100 transition">
+                <p class="text-sm font-medium text-sky-900 truncate">{{ task.description|default:task.get_task_type_display }}</p>
+                <p class="text-xs text-sky-600 mt-0.5">
+                    {{ task.case.patient.last_name }} {{ task.case.patient.first_name|first }}. · {{ task.due_date|date:"H:i" }}
+                </p>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if sidebar_tasks.soon %}
+    <div>
+        <p class="text-xs font-semibold text-sky-500 uppercase mb-2">Ближайшие дни</p>
+        <div class="space-y-2">
+            {% for task in sidebar_tasks.soon %}
+            <a href="{% url 'crm:case_detail' task.case.id %}"
+               class="block p-2.5 bg-white border border-sky-100 rounded-lg hover:bg-sky-50 transition">
+                <p class="text-sm font-medium text-sky-800 truncate">{{ task.description|default:task.get_task_type_display }}</p>
+                <p class="text-xs text-sky-500 mt-0.5">
+                    {{ task.case.patient.last_name }} {{ task.case.patient.first_name|first }}. · {{ task.due_date|date:"d.m H:i" }}
+                </p>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not sidebar_tasks.overdue and not sidebar_tasks.today and not sidebar_tasks.soon %}
+    <p class="text-sm text-sky-500">Активных задач нет. Отдыхай 🙂</p>
+    {% endif %}
+</div>

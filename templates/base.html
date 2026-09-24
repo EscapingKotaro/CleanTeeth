@@ -156,12 +156,7 @@
 
             <!-- Левый сайдбар (Задачи) -->
             <aside class="hidden xl:block w-80 flex-shrink-0">
-                {% block sidebar_left %}
-                <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4 sticky top-24">
-                    <h3 class="text-lg font-bold text-sky-900 mb-4">План дня</h3>
-                    <p class="text-sm text-sky-600">Задачи на сегодня</p>
-                </div>
-                {% endblock %}
+                {% include "crm/partials/sidebar_tasks.html" %}
             </aside>
 
             <!-- Центральный контент -->
@@ -172,46 +167,7 @@
             <!-- Правый сайдбар (Мотивация) -->
             <!-- Правый сайдбар (Мотивация) -->
 <aside class="hidden xl:block w-80 flex-shrink-0">
-    {% block sidebar_right %}
-    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4 sticky top-24">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-sky-900">Мотивация</h3>
-            <a href="{% url 'crm:motivation' %}" class="text-xs text-sky-600 hover:text-sky-800">Подробнее →</a>
-        </div>
-
-        {% if current_motivation %}
-        <div class="space-y-3">
-            <div>
-                <p class="text-xs text-sky-600 mb-1">{{ current_motivation.period_label }} · План</p>
-                <p class="text-lg font-bold text-sky-900">{{ current_motivation.plan_amount|floatformat:0 }} ₽</p>
-            </div>
-            <div>
-                <p class="text-xs text-sky-600 mb-1">Факт (К1)</p>
-                <p class="text-lg font-bold text-green-600">{{ current_motivation.fact_amount|floatformat:0 }} ₽</p>
-            </div>
-            <div>
-                <p class="text-xs text-sky-600 mb-1">Выполнение</p>
-                <div class="w-full bg-sky-100 rounded-full h-2">
-                    <div class="bg-green-500 h-2 rounded-full transition-all"
-                         style="width: {{ current_motivation.completion_percent|floatformat:0 }}%"></div>
-                </div>
-                <div class="flex justify-between mt-1">
-                    <p class="text-sm font-medium text-sky-900">{{ current_motivation.completion_percent }}%</p>
-                    <p class="text-xs text-sky-500">Темп: {{ current_motivation.pace_percent }}%</p>
-                </div>
-            </div>
-            <div class="pt-2 border-t border-sky-100">
-                <div class="flex justify-between text-sm">
-                    <span class="text-sky-600">Бонусы сейчас:</span>
-                    <span class="font-bold text-sky-900">{{ current_motivation.total_bonus|floatformat:0 }} ₽</span>
-                </div>
-            </div>
-        </div>
-        {% else %}
-        <p class="text-sm text-sky-500">План на месяц не назначен. Обратитесь к управляющей.</p>
-        {% endif %}
-    </div>
-    {% endblock %}
+    {% include "crm/partials/sidebar_motivation.html" %}
 </aside>
 
         </div>

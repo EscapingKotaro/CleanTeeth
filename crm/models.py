@@ -189,6 +189,20 @@ class TreatmentPlan(models.Model):
         return f"План #{self.id} — {self.patient} ({self.agreed_sum} ₽)"
 
 
+
+class LostReason(models.Model):
+    """Структурированная причина отказа (справочник, редактируется в админке)."""
+    title = models.CharField("Причина", max_length=255)
+    sort_order = models.PositiveIntegerField("Порядок сортировки", default=0)
+    is_active = models.BooleanField("Активна", default=True)
+
+    class Meta:
+        verbose_name = "Причина отказа"
+        verbose_name_plural = "Причины отказа (справочник)"
+        ordering = ["sort_order", "title"]
+
+    def __str__(self):
+        return self.title
 # ============================================================
 # КУРАТОРСКИЙ КЕЙС
 # ============================================================
@@ -464,20 +478,6 @@ class CuratorMonthlyPlan(models.Model):
 
 from datetime import datetime, timedelta
 
-
-class LostReason(models.Model):
-    """Структурированная причина отказа (справочник, редактируется в админке)."""
-    title = models.CharField("Причина", max_length=255)
-    sort_order = models.PositiveIntegerField("Порядок сортировки", default=0)
-    is_active = models.BooleanField("Активна", default=True)
-
-    class Meta:
-        verbose_name = "Причина отказа"
-        verbose_name_plural = "Причины отказа (справочник)"
-        ordering = ["sort_order", "title"]
-
-    def __str__(self):
-        return self.title
 
 
 class Task(models.Model):

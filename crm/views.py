@@ -3,6 +3,12 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import views as auth_views
 from .models import CuratorCase
 
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
+from django.http import HttpResponseForbidden
+from datetime import datetime, timedelta, time as dtime
+from .models import Task, LostReason
+
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
@@ -102,25 +108,27 @@ def cases_list(request):
 
 @login_required
 def case_detail(request, case_id):
-    """Детальная страница кейса (с сайдбарами)"""
     case = get_object_or_404(
-        CuratorCase.objects.select_related("patient", "plan", "curator"),
-        id=case_id
+        CuratorCase.objects.select_related("patient", "plan", "curator", "lost_reason"),
+        id=case_id,
     )
-
-    # Проверка доступа (куратор видит только свои кейсы)
-    if request.user.role == "CURATOR" and case.curator != request.user:
-        from django.http import HttpResponseForbidden
-        return HttpResponseForbidden("У вас нет доступа к этому кейсу")
-
-    # Задачи кейса (пока заглушка)
-    tasks = []
+    if request.user.role == CustomUser.Role.CURATOR and case.curator_id != request.user.id:
+        return HttpResponseForbidden("У вас нет доступа к этому кейсу.")
 
     return render(request, "crm/case_detail.html", {
         "title": f"Кейс #{case.id}",
         "case": case,
-        "tasks": tasks,
-        "use_sidebar": True,  # ← флаг для шаблона
+        "tasks": case.tasks.filter(status=Task.TaskStatus.PENDING).order_by("due_date"),
+        "done_tasks": case.tasks.exclude(status=Task.TaskStatus.PENDING).order_by("-due_date")[:15],
+        "funnel_steps": CuratorCase.funnel_choices(),
+        "task_types": Task.TaskType.choices,
+        "priorities": Task.Priority.choices,
+        "plan_types": TreatmentPlan.PlanType.choices,
+        "lost_reasons": LostReason.objects.filter(is_active=True),
+        "curators": CustomUser.objects.filter(
+            role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
+        ),
+        "use_sidebar": True,
     })
 
 
@@ -309,9 +317,238 @@ def plan_create(request):
             status=CuratorCase.Status.TRANSFERRED,
         )
 
-        # TODO (автоматизация №18 из ТЗ): создать первую задачу для кейса,
-        # когда добавим модель Task. Например:
-        # Task.objects.create(case=case, assignee=curator, ...)
+        # Автоматизация ТЗ №18: первая задача при создании кейса
+        Task.objects.create(
+            case=case,
+            task_type=Task.TaskType.CONTACT,
+            description="Связаться с пациентом и презентовать план лечения",
+            due_date=timezone.now() + timedelta(days=1),
+            assignee_id=curator_id,
+            priority=Task.Priority.HIGH,
+        )
 
     messages.success(request, f"План #{plan.id} и кейс #{case.id} созданы.")
     return redirect("crm:cases_list")
+
+
+def _parse_dt(value):
+    """Принимает '2026-02-15T14:00' или '2026-02-15' → aware datetime."""
+    if not value:
+        return None
+    dt = parse_datetime(value)
+    if dt is None:
+        d = parse_date(value)
+        if d:
+            dt = datetime.combine(d, dtime(12, 0))
+    if dt is None:
+        return None
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt)
+    return dt
+
+def _apply_status_transition(case, new_status, post, user):
+    """Валидация условий выхода + применение статуса. Возвращает список ошибок."""
+    from django.db import transaction
+
+    errors = []
+    today = timezone.now().date()
+
+    # ===== 2. План презентован =====
+    if new_status == CuratorCase.Status.PRESENTED:
+        result_text = post.get("presentation_result", "").strip()
+        pres_date = parse_date(post.get("presentation_date", "")) or today
+        if not result_text:
+            errors.append("Зафиксируйте результат презентации — это обязательное условие статуса.")
+        else:
+            with transaction.atomic():
+                plan = case.plan
+                plan.presentation_date = pres_date
+                plan.presentation_result = result_text
+                plan.save(update_fields=["presentation_date", "presentation_result"])
+
+    # ===== 3. Решение в работе =====
+    elif new_status == CuratorCase.Status.IN_DECISION:
+        reason = post.get("decision_reason", "").strip()
+        comment = post.get("decision_comment", "").strip()
+        next_dt = _parse_dt(post.get("next_action_date", ""))
+        next_type = post.get("next_action_type") or Task.TaskType.CONTACT
+
+        if not reason:
+            errors.append("Укажите причину, по которой пациент ещё не принял решение.")
+        if not comment:
+            errors.append("Добавьте комментарий.")
+        if not next_dt:
+            errors.append("Укажите дату и время следующего действия.")
+
+        if not errors:
+            with transaction.atomic():
+                case.decision_reason = reason
+                case.decision_comment = comment
+                # Правило непрерывности: автоматически создаём следующую задачу
+                Task.objects.create(
+                    case=case,
+                    task_type=next_type,
+                    description=f"Следующий шаг после «Решение в работе»: {reason}",
+                    due_date=next_dt,
+                    assignee=case.curator or user,
+                    priority=Task.Priority.HIGH,
+                )
+
+    # ===== 4. План согласован =====
+    elif new_status == CuratorCase.Status.AGREED:
+        agreed_sum = _to_decimal(post.get("agreed_sum"))
+        plan_type = post.get("plan_type", "")
+        next_step = post.get("next_step", "").strip()
+        next_dt = _parse_dt(post.get("next_step_date", "")) or timezone.now() + timedelta(days=1)
+
+        if agreed_sum <= 0:
+            errors.append("Укажите согласованную сумму.")
+        if not plan_type:
+            errors.append("Выберите тип плана (с авансом / по факту).")
+
+        if not errors:
+            with transaction.atomic():
+                plan = case.plan
+                plan.agreed_sum = agreed_sum
+                plan.plan_type = plan_type
+                plan.agreement_date = plan.agreement_date or today
+                plan.save(update_fields=["agreed_sum", "plan_type", "agreement_date"])
+                if next_step:
+                    Task.objects.create(
+                        case=case,
+                        task_type=Task.TaskType.DOCUMENTS,
+                        description=f"Дальнейший шаг: {next_step}",
+                        due_date=next_dt,
+                        assignee=case.curator or user,
+                        priority=Task.Priority.HIGH,
+                    )
+
+    # ===== 5. Лечение в процессе =====
+    elif new_status == CuratorCase.Status.IN_PROGRESS:
+        control_date = parse_date(post.get("next_control_date", ""))
+        if not control_date:
+            errors.append("Укажите следующий визит / контрольную дату.")
+        else:
+            with transaction.atomic():
+                case.next_control_date = control_date
+                plan = case.plan
+                plan.start_date = plan.start_date or today
+                plan.save(update_fields=["start_date"])
+                Task.objects.create(
+                    case=case,
+                    task_type=Task.TaskType.NEXT_STAGE,
+                    description="Проконтролировать следующий этап лечения",
+                    due_date=timezone.make_aware(datetime.combine(control_date, dtime(10, 0))),
+                    assignee=case.curator or user,
+                    priority=Task.Priority.MEDIUM,
+                )
+
+    # ===== 6. Лечение завершено =====
+    elif new_status == CuratorCase.Status.COMPLETED:
+        with transaction.atomic():
+            case.completed_at = today
+            plan = case.plan
+            plan.end_date = plan.end_date or today
+            plan.save(update_fields=["end_date"])
+            case.tasks.filter(status=Task.TaskStatus.PENDING).update(
+                status=Task.TaskStatus.CANCELLED
+            )
+
+    # ===== Закрывающий исход: Отказ / потерян =====
+    elif new_status == CuratorCase.Status.LOST:
+        lost_date = parse_date(post.get("lost_date", ""))
+        lost_reason_id = post.get("lost_reason") or None
+        lost_sum = _to_decimal(post.get("lost_potential_sum"))
+        lost_comment = post.get("lost_comment", "").strip()
+
+        if not lost_date:
+            errors.append("Укажите дату отказа.")
+        if not lost_reason_id:
+            errors.append("Выберите причину отказа из справочника.")
+        if lost_sum <= 0:
+            errors.append("Укажите сумму потенциального плана.")
+        if not lost_comment:
+            errors.append("Добавьте комментарий к отказу.")
+
+        if not errors:
+            with transaction.atomic():
+                case.lost_date = lost_date
+                case.lost_reason_id = lost_reason_id
+                case.lost_potential_sum = lost_sum
+                case.lost_comment = lost_comment
+                case.tasks.filter(status=Task.TaskStatus.PENDING).update(
+                    status=Task.TaskStatus.CANCELLED
+                )
+
+    else:
+        errors.append("Неизвестный статус.")
+
+    return errors
+
+
+@login_required
+def case_change_status(request, case_id):
+    case = get_object_or_404(
+        CuratorCase.objects.select_related("plan", "curator", "patient"), id=case_id
+    )
+    if request.method != "POST":
+        return redirect("crm:case_detail", case_id=case.id)
+
+    new_status = request.POST.get("status")
+    errors = _apply_status_transition(case, new_status, request.POST, request.user)
+
+    if errors:
+        for e in errors:
+            messages.error(request, e)
+    else:
+        case.status = new_status
+        case.save()
+        messages.success(request, f"Статус изменён: «{case.get_status_display()}».")
+
+    return redirect("crm:case_detail", case_id=case.id)
+
+
+@login_required
+def task_create(request, case_id):
+    case = get_object_or_404(CuratorCase, id=case_id)
+    if request.method == "POST":
+        due_dt = _parse_dt(request.POST.get("due_date"))
+        if not due_dt:
+            messages.error(request, "Укажите дату и время задачи.")
+        else:
+            Task.objects.create(
+                case=case,
+                task_type=request.POST.get("task_type") or Task.TaskType.CONTACT,
+                description=request.POST.get("description", "").strip(),
+                due_date=due_dt,
+                assignee_id=request.POST.get("assignee_id") or case.curator_id or request.user.id,
+                priority=request.POST.get("priority") or Task.Priority.MEDIUM,
+            )
+            messages.success(request, "Задача создана.")
+    return redirect("crm:case_detail", case_id=case_id)
+
+
+@login_required
+def task_complete(request, task_id):
+    task = get_object_or_404(Task, id=task_id)
+    if request.method == "POST":
+        task.status = Task.TaskStatus.DONE
+        task.result = request.POST.get("result", "").strip()
+        task.completed_at = timezone.now()
+        task.save(update_fields=["status", "result", "completed_at"])
+        messages.success(request, "Задача выполнена. Не забудьте создать следующий шаг.")
+    return redirect("crm:case_detail", case_id=task.case_id)
+
+
+@login_required
+def task_postpone(request, task_id):
+    task = get_object_or_404(Task, id=task_id)
+    if request.method == "POST":
+        new_dt = _parse_dt(request.POST.get("due_date"))
+        if new_dt:
+            task.due_date = new_dt
+            task.save(update_fields=["due_date"])
+            messages.success(request, "Задача перенесена.")
+        else:
+            messages.error(request, "Укажите новую дату и время.")
+    return redirect("crm:case_detail", case_id=task.case_id)

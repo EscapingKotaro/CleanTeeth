@@ -169,6 +169,7 @@ class TreatmentPlan(models.Model):
     agreed_sum = models.DecimalField("Согласованная сумма", max_digits=12, decimal_places=2, default=0)
     presentation_date = models.DateField("Дата презентации", null=True, blank=True)
     agreement_date = models.DateField("Дата согласования", null=True, blank=True)
+    presentation_result = models.TextField("Результат презентации", blank=True)
     is_signed_by_patient = models.BooleanField("План подписан пациентом", default=False)
     plan_type = models.CharField("Тип плана", max_length=20, choices=PlanType.choices, blank=True)
     start_date = models.DateField("Дата начала лечения", null=True, blank=True)
@@ -235,9 +236,25 @@ class CuratorCase(models.Model):
         default=Status.TRANSFERRED,
     )
 
+    # Статус «Решение в работе»
+    decision_reason = models.CharField("Почему решение не принято", max_length=255, blank=True)
+    decision_comment = models.TextField("Комментарий к решению", blank=True)
+
+    # Статус «Лечение в процессе»
+    next_control_date = models.DateField("Следующая контрольная дата", null=True, blank=True)
+
+    # Статус «Лечение завершено»
+    completed_at = models.DateField("Дата закрытия кейса", null=True, blank=True)
+
     # --- Поля для закрывающего исхода "Отказ / потерян" ---
     lost_date = models.DateField("Дата отказа", null=True, blank=True)
-    lost_reason = models.CharField("Причина отказа", max_length=255, blank=True)
+    lost_reason = models.ForeignKey(
+        LostReason,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="cases",
+        verbose_name="Причина отказа",
+    )
     lost_potential_sum = models.DecimalField(
         "Сумма потенциального плана",
         max_digits=12, decimal_places=2,
@@ -267,6 +284,24 @@ class CuratorCase(models.Model):
     @property
     def is_active(self):
         return self.status not in (self.Status.COMPLETED, self.Status.LOST)
+
+    @property
+    def has_future_tasks(self):
+        from django.utils import timezone
+        return self.tasks.filter(
+            status=Task.TaskStatus.PENDING,
+            due_date__gte=timezone.now(),
+        ).exists()
+
+    @property
+    def continuity_broken(self):
+        """Активный кейс без будущей задачи = отклонение (правило непрерывности)."""
+        return self.is_active and not self.has_future_tasks
+
+    @classmethod
+    def funnel_choices(cls):
+        """Статусы воронки без закрывающего исхода."""
+        return [c for c in cls.Status.choices if c[0] != cls.Status.LOST]
 
 
 
@@ -425,3 +460,86 @@ class CuratorMonthlyPlan(models.Model):
             "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
         ]
         return f"{months[self.month]} {self.year}"
+
+
+from datetime import datetime, timedelta
+
+
+class LostReason(models.Model):
+    """Структурированная причина отказа (справочник, редактируется в админке)."""
+    title = models.CharField("Причина", max_length=255)
+    sort_order = models.PositiveIntegerField("Порядок сортировки", default=0)
+    is_active = models.BooleanField("Активна", default=True)
+
+    class Meta:
+        verbose_name = "Причина отказа"
+        verbose_name_plural = "Причины отказа (справочник)"
+        ordering = ["sort_order", "title"]
+
+    def __str__(self):
+        return self.title
+
+
+class Task(models.Model):
+    """Операционное действие по кейсу. НЕ является статусом воронки."""
+
+    class TaskType(models.TextChoices):
+        CONTACT = "CONTACT", "Связаться с пациентом"
+        ADVANCE = "ADVANCE", "Получить аванс"
+        DOCUMENTS = "DOCUMENTS", "Оформить документы"
+        VISIT_REMINDER = "VISIT_REMINDER", "Напомнить о визите"
+        PAYMENT_REMINDER = "PAYMENT_REMINDER", "Напомнить об оплате"
+        NEXT_STAGE = "NEXT_STAGE", "Проконтролировать следующий этап"
+        DELIVERY = "DELIVERY", "Сдача работы"
+        FEEDBACK = "FEEDBACK", "Получить обратную связь"
+        OTHER = "OTHER", "Другое"
+
+    class TaskStatus(models.TextChoices):
+        PENDING = "PENDING", "В ожидании"
+        DONE = "DONE", "Выполнена"
+        CANCELLED = "CANCELLED", "Отменена"
+
+    class Priority(models.TextChoices):
+        LOW = "1", "Низкий"
+        MEDIUM = "2", "Средний"
+        HIGH = "3", "Высокий"
+        CRITICAL = "4", "Критичный"
+
+    case = models.ForeignKey(
+        "CuratorCase", on_delete=models.CASCADE, related_name="tasks", verbose_name="Кейс"
+    )
+    task_type = models.CharField(
+        "Тип задачи", max_length=30, choices=TaskType.choices, default=TaskType.CONTACT
+    )
+    description = models.TextField("Описание", blank=True)
+    due_date = models.DateTimeField("Дата и время")
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="tasks",
+        verbose_name="Ответственный",
+    )
+    priority = models.CharField(
+        "Приоритет", max_length=10, choices=Priority.choices, default=Priority.MEDIUM
+    )
+    status = models.CharField(
+        "Статус", max_length=20, choices=TaskStatus.choices, default=TaskStatus.PENDING
+    )
+    comment = models.TextField("Комментарий", blank=True)
+    result = models.TextField("Результат", blank=True)
+    created_at = models.DateTimeField("Создана", auto_now_add=True)
+    completed_at = models.DateTimeField("Выполнена", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Задача"
+        verbose_name_plural = "Задачи"
+        ordering = ["due_date"]
+
+    def __str__(self):
+        return f"{self.get_task_type_display()} · {self.case} · {self.due_date:%d.%m %H:%M}"
+
+    @property
+    def is_overdue(self):
+        from django.utils import timezone
+        return self.status == self.TaskStatus.PENDING and self.due_date < timezone.now()

@@ -165,3 +165,20 @@ class CuratorMonthlyPlanAdmin(admin.ModelAdmin):
     def completion_percent(self, obj):
         return f"{obj.completion_percent}%"
     completion_percent.short_description = "Выполнение"
+
+
+from .models import Task, LostReason
+
+
+@admin.register(LostReason)
+class LostReasonAdmin(admin.ModelAdmin):
+    list_display = ("title", "sort_order", "is_active")
+    list_editable = ("sort_order", "is_active")
+
+
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ("id", "case", "task_type", "due_date", "assignee", "priority", "status")
+    list_filter = ("task_type", "status", "priority")
+    search_fields = ("description", "case__patient__last_name")
+    autocomplete_fields = ("case", "assignee")

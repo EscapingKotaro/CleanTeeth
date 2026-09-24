@@ -631,7 +631,7 @@
     <!-- ВЫПОЛНИТЬ ЗАДАЧУ -->
     <div x-show="modal === 'complete_task'" x-cloak
          class="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <form method="post" :action="'/crm/tasks/' + taskId + '/complete/'"
+            <form method="post" :action="'/tasks/' + taskId + '/complete/'"
               class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
             {% csrf_token %}
             <h3 class="text-lg font-bold text-sky-900 mb-4">Выполнить задачу</h3>
@@ -651,7 +651,7 @@
     <!-- ПЕРЕНЕСТИ ЗАДАЧУ -->
     <div x-show="modal === 'postpone_task'" x-cloak
          class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <form method="post" :action="'/crm/tasks/' + taskId + '/postpone/'"
+        <form method="post" :action="'/tasks/' + taskId + '/postpone/'"
               class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
             {% csrf_token %}
             <h3 class="text-lg font-bold text-sky-900 mb-4">Перенести задачу</h3>

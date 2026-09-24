@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.http import HttpResponseForbidden
 from datetime import datetime, timedelta, time as dtime
-from .models import Task, LostReason
+from .models import *
 
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================

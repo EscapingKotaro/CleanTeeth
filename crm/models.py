@@ -148,7 +148,8 @@ class Patient(models.Model):
     )
     created_at = models.DateTimeField("Создан", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлён", auto_now=True)
-
+    is_active = models.BooleanField("Активен", default=True)
+    
     class Meta:
         verbose_name = "Пациент"
         verbose_name_plural = "Пациенты"

@@ -85,6 +85,10 @@
                         </a>
                     {% endif %}
 
+                    <a href="{% url 'crm:patients_list' %}"
+       class="px-3 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'patients_list' %}bg-sky-100 text-sky-900{% else %}text-sky-700 hover:bg-sky-50{% endif %} transition">
+        Пациенты
+    </a>
                     <a href="{% url 'crm:doctors_list' %}"
        class="px-3 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'doctors_list' %}bg-sky-100 text-sky-900{% else %}text-sky-700 hover:bg-sky-50{% endif %} transition">
         Врачи

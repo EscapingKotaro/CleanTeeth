@@ -40,4 +40,9 @@ urlpatterns = [
     path("users/create/", views.user_create, name="user_create"),
     path("users/<int:user_id>/update/", views.user_update, name="user_update"),
     path("users/<int:user_id>/toggle-active/", views.user_toggle_active, name="user_toggle_active"),
+
+    path("patients/", views.patients_list, name="patients_list"),
+    path("patients/create/", views.patient_create, name="patient_create"),
+    path("patients/<int:patient_id>/update/", views.patient_update, name="patient_update"),
+    path("patients/<int:patient_id>/delete/", views.patient_delete, name="patient_delete"),
 ]

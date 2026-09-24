@@ -13,7 +13,7 @@ from functools import wraps
 from django.core.paginator import Paginator
 from django.db.models import Q
 from .models import Doctor, Direction
-
+from django.db.models import Count, Exists, OuterRef, Q
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
@@ -820,3 +820,126 @@ def user_toggle_active(request, user_id):
         state = "активирован" if user.is_active else "деактивирован"
         messages.success(request, f"Пользователь «{user.username}» {state}.")
     return redirect("crm:users_list")
+
+
+
+
+@login_required
+def patients_list(request):
+    query = request.GET.get("q", "").strip()
+    status_filter = request.GET.get("active", "")
+    contract_filter = request.GET.get("contract", "")
+
+    active_contracts = Contract.objects.filter(
+        patient=OuterRef("pk"),
+        status=Contract.Status.ACTIVE,
+    )
+
+    queryset = Patient.objects.annotate(
+        cases_count=Count("cases", distinct=True),
+        plans_count=Count("plans", distinct=True),
+        has_active_contract=Exists(active_contracts),
+    ).order_by("last_name", "first_name")
+
+    if query:
+        queryset = queryset.filter(
+            Q(last_name__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(middle_name__icontains=query)
+            | Q(phone__icontains=query)
+        )
+    if status_filter == "active":
+        queryset = queryset.filter(is_active=True)
+    elif status_filter == "inactive":
+        queryset = queryset.filter(is_active=False)
+    if contract_filter == "yes":
+        queryset = queryset.filter(has_active_contract=True)
+    elif contract_filter == "no":
+        queryset = queryset.filter(has_active_contract=False)
+
+    paginator = Paginator(queryset, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    search_params = request.GET.copy()
+    search_params.pop("page", None)
+
+    return render(request, "crm/patients_list.html", {
+        "title": "Пациенты",
+        "page_obj": page_obj,
+        "total_count": paginator.count,
+        "query": query,
+        "status_filter": status_filter,
+        "contract_filter": contract_filter,
+        "search_params": search_params.urlencode(),
+    })
+
+@login_required
+def patient_create(request):
+    if request.method != "POST":
+        return redirect("crm:patients_list")
+
+    last_name = request.POST.get("last_name", "").strip()
+    first_name = request.POST.get("first_name", "").strip()
+    phone = request.POST.get("phone", "").strip()
+
+    if not last_name or not first_name or not phone:
+        messages.error(request, "Фамилия, имя и телефон обязательны.")
+        return redirect("crm:patients_list")
+
+    if Patient.objects.filter(phone=phone).exists():
+        messages.error(request, f"Пациент с телефоном «{phone}» уже существует.")
+        return redirect("crm:patients_list")
+
+    Patient.objects.create(
+        last_name=last_name,
+        first_name=first_name,
+        middle_name=request.POST.get("middle_name", "").strip(),
+        phone=phone,
+        birth_date=parse_date(request.POST.get("birth_date", "")) or None,
+        comment=request.POST.get("comment", "").strip(),
+    )
+    messages.success(request, f"Пациент {last_name} {first_name} создан.")
+    return redirect("crm:patients_list")
+
+@login_required
+def patient_update(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    if request.method != "POST":
+        return redirect("crm:patients_list")
+
+    phone = request.POST.get("phone", patient.phone).strip()
+    if Patient.objects.filter(phone=phone).exclude(pk=patient.pk).exists():
+        messages.error(request, f"Телефон «{phone}» уже занят другим пациентом.")
+        return redirect("crm:patients_list")
+
+    patient.last_name = request.POST.get("last_name", patient.last_name).strip()
+    patient.first_name = request.POST.get("first_name", patient.first_name).strip()
+    patient.middle_name = request.POST.get("middle_name", "").strip()
+    patient.phone = phone
+    patient.birth_date = parse_date(request.POST.get("birth_date", "")) or None
+    patient.comment = request.POST.get("comment", "").strip()
+    patient.save()
+
+    messages.success(request, "Данные пациента обновлены.")
+    return redirect("crm:patients_list")
+
+@manager_required
+def patient_delete(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    if request.method != "POST":
+        return redirect("crm:patients_list")
+
+    # Если есть кейсы или планы — не удаляем, а деактивируем
+    if patient.cases.exists() or patient.plans.exists():
+        patient.is_active = False
+        patient.save(update_fields=["is_active"])
+        messages.warning(
+            request,
+            f"У пациента «{patient}» есть кейсы или планы — он деактивирован вместо удаления.",
+        )
+    else:
+        name = str(patient)
+        patient.delete()
+        messages.success(request, f"Пациент «{name}» удалён.")
+
+    return redirect("crm:patients_list")

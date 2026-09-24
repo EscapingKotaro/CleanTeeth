@@ -252,8 +252,10 @@ def patient_update(request, patient_id):
         patient = Patient.objects.get(id=patient_id)
         patient.last_name = request.POST.get('last_name')
         patient.first_name = request.POST.get('first_name')
+        patient.middle_name=request.POST.get("middle_name")
         patient.phone = request.POST.get('phone')
         patient.comment = request.POST.get('comment', '')
+        patient.birth_date=parse_date(request.POST.get("birth_date"))
         patient.save()
         messages.success(request, "Данные пациента обновлены")
     return redirect('crm:case_detail', case_id=request.POST.get('case_id', 1)) # Упрощено для примера

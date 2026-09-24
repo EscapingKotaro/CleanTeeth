@@ -9,6 +9,11 @@ from django.http import HttpResponseForbidden
 from datetime import datetime, timedelta, time as dtime
 from .models import *
 
+from functools import wraps
+from django.core.paginator import Paginator
+from django.db.models import Q
+from .models import Doctor, Direction
+
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
@@ -552,3 +557,126 @@ def task_postpone(request, task_id):
         else:
             messages.error(request, "Укажите новую дату и время.")
     return redirect("crm:case_detail", case_id=task.case_id)
+
+
+def manager_required(view_func):
+    """Доступ только для Управляющей и Админа (справочники — их зона)."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if request.user.role not in (CustomUser.Role.MANAGER, CustomUser.Role.ADMIN):
+            return HttpResponseForbidden("Недостаточно прав для этого раздела.")
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+@login_required
+def doctors_list(request):
+    """Список врачей: поиск + фильтр по направлению/статусу + пагинация."""
+    query = request.GET.get("q", "").strip()
+    direction_filter = request.GET.get("direction", "")
+    status_filter = request.GET.get("active", "")
+
+    queryset = Doctor.objects.all().order_by("last_name", "first_name")
+
+    if query:
+        queryset = queryset.filter(
+            Q(last_name__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(middle_name__icontains=query)
+            | Q(phone__icontains=query)
+            | Q(email__icontains=query)
+        )
+    if direction_filter:
+        queryset = queryset.filter(direction=direction_filter)
+    if status_filter == "active":
+        queryset = queryset.filter(is_active=True)
+    elif status_filter == "inactive":
+        queryset = queryset.filter(is_active=False)
+
+    paginator = Paginator(queryset, 15)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    # Сохраняем параметры поиска при переходах по страницам
+    search_params = request.GET.copy()
+    search_params.pop("page", None)
+    search_params = search_params.urlencode()
+
+    return render(request, "crm/doctors_list.html", {
+        "title": "Врачи",
+        "page_obj": page_obj,
+        "total_count": paginator.count,
+        "directions": Direction.choices,
+        "query": query,
+        "direction_filter": direction_filter,
+        "status_filter": status_filter,
+        "search_params": search_params,
+        # без сайдбаров
+    })
+
+
+@login_required
+def doctor_create(request):
+    if request.method != "POST":
+        return redirect("crm:doctors_list")
+
+    last_name = request.POST.get("last_name", "").strip()
+    first_name = request.POST.get("first_name", "").strip()
+    if not last_name or not first_name:
+        messages.error(request, "Фамилия и имя обязательны.")
+        return redirect("crm:doctors_list")
+
+    Doctor.objects.create(
+        last_name=last_name,
+        first_name=first_name,
+        middle_name=request.POST.get("middle_name", "").strip(),
+        phone=request.POST.get("phone", "").strip(),
+        email=request.POST.get("email", "").strip(),
+        direction=request.POST.get("direction", ""),
+        is_active=request.POST.get("is_active") == "on",
+        ident_doctor_id=request.POST.get("ident_doctor_id", "").strip() or None,
+        comment=request.POST.get("comment", "").strip(),
+    )
+    messages.success(request, f"Врач {last_name} {first_name} добавлен.")
+    return redirect("crm:doctors_list")
+
+@login_required
+def doctor_update(request, doctor_id):
+    doctor = get_object_or_404(Doctor, id=doctor_id)
+    if request.method != "POST":
+        return redirect("crm:doctors_list")
+
+    doctor.last_name = request.POST.get("last_name", doctor.last_name).strip()
+    doctor.first_name = request.POST.get("first_name", doctor.first_name).strip()
+    doctor.middle_name = request.POST.get("middle_name", "").strip()
+    doctor.phone = request.POST.get("phone", "").strip()
+    doctor.email = request.POST.get("email", "").strip()
+    doctor.direction = request.POST.get("direction", "")
+    doctor.is_active = request.POST.get("is_active") == "on"
+    doctor.ident_doctor_id = request.POST.get("ident_doctor_id", "").strip() or None
+    doctor.comment = request.POST.get("comment", "").strip()
+    doctor.save()
+
+    messages.success(request, "Данные врача обновлены.")
+    return redirect("crm:doctors_list")
+
+@login_required
+def doctor_delete(request, doctor_id):
+    doctor = get_object_or_404(Doctor, id=doctor_id)
+    if request.method != "POST":
+        return redirect("crm:doctors_list")
+
+    # Защита от случайного удаления (ТЗ п.23):
+    # если на врача есть планы — не удаляем, а деактивируем
+    if doctor.treatment_plans.exists():
+        doctor.is_active = False
+        doctor.save(update_fields=["is_active"])
+        messages.warning(
+            request,
+            f"У врача «{doctor}» есть планы лечения — он деактивирован вместо удаления.",
+        )
+    else:
+        name = str(doctor)
+        doctor.delete()
+        messages.success(request, f"Врач «{name}» удалён.")
+
+    return redirect("crm:doctors_list")

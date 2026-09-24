@@ -30,4 +30,9 @@ urlpatterns = [
     path("cases/<int:case_id>/task/create/", views.task_create, name="task_create"),
     path("tasks/<int:task_id>/complete/", views.task_complete, name="task_complete"),
     path("tasks/<int:task_id>/postpone/", views.task_postpone, name="task_postpone"),
+
+    path("doctors/", views.doctors_list, name="doctors_list"),
+    path("doctors/create/", views.doctor_create, name="doctor_create"),
+    path("doctors/<int:doctor_id>/update/", views.doctor_update, name="doctor_update"),
+    path("doctors/<int:doctor_id>/delete/", views.doctor_delete, name="doctor_delete"),
 ]

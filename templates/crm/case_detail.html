@@ -195,6 +195,64 @@
         </div>
     </div>
 
+        <!-- РЕДАКТИРОВАТЬ ПЛАН -->
+    <div x-show="modal === 'edit_plan'" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <form method="post" action="{% url 'crm:plan_update' case.plan.id %}"
+              class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" @click.stop>
+            {% csrf_token %}
+            <h3 class="text-lg font-bold text-sky-900 mb-4">Редактировать план лечения</h3>
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Первоначальная, ₽</label>
+                        <input type="number" step="0.01" name="initial_sum" value="{{ case.plan.initial_sum }}"
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Презентация, ₽</label>
+                        <input type="number" step="0.01" name="presentation_sum" value="{{ case.plan.presentation_sum }}"
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Согласованная, ₽</label>
+                        <input type="number" step="0.01" name="agreed_sum" value="{{ case.plan.agreed_sum }}"
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Дата презентации</label>
+                        <input type="date" name="presentation_date" value="{{ case.plan.presentation_date|date:'Y-m-d' }}"
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Дата согласования</label>
+                        <input type="date" name="agreement_date" value="{{ case.plan.agreement_date|date:'Y-m-d' }}"
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Тип плана</label>
+                    <select name="plan_type" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                        <option value="">Не выбран</option>
+                        <option value="ADVANCE" {% if case.plan.plan_type == 'ADVANCE' %}selected{% endif %}>План с авансом</option>
+                        <option value="FACT" {% if case.plan.plan_type == 'FACT' %}selected{% endif %}>Без аванса / лечение по факту</option>
+                    </select>
+                </div>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="is_signed_by_patient" value="true" {% if case.plan.is_signed_by_patient %}checked{% endif %}
+                           class="h-4 w-4 text-sky-600 border-sky-300 rounded focus:ring-sky-500">
+                    <span class="text-sm text-sky-900">План подписан пациентом</span>
+                </label>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
+                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Сохранить</button>
+            </div>
+        </form>
+    </div>
+
     <!-- ==================== ЗАДАЧИ ==================== -->
     <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
         <div class="flex justify-between items-center mb-4">
@@ -273,6 +331,57 @@
 
     <!-- Общий бэкдроп -->
     <div x-show="modal" x-cloak class="fixed inset-0 z-40 bg-sky-900 bg-opacity-50" @click="modal = null"></div>
+
+
+        <!-- РЕДАКТИРОВАТЬ ПАЦИЕНТА -->
+    <div x-show="modal === 'edit_patient'" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <form method="post" action="{% url 'crm:patient_update' case.patient.id %}"
+              class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" @click.stop>
+            {% csrf_token %}
+            <h3 class="text-lg font-bold text-sky-900 mb-4">Редактировать пациента</h3>
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Фамилия</label>
+                        <input type="text" name="last_name" value="{{ case.patient.last_name }}" required
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Имя</label>
+                        <input type="text" name="first_name" value="{{ case.patient.first_name }}" required
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Отчество</label>
+                        <input type="text" name="middle_name" value="{{ case.patient.middle_name }}"
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Телефон</label>
+                        <input type="tel" name="phone" value="{{ case.patient.phone }}" required
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Дата рождения</label>
+                        <input type="date" name="birth_date" value="{{ case.patient.birth_date|date:'Y-m-d' }}"
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Комментарий</label>
+                    <textarea name="comment" rows="2"
+                              class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">{{ case.patient.comment }}</textarea>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
+                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Сохранить</button>
+            </div>
+        </form>
+    </div>
 
     <!-- 2. ПЛАН ПРЕЗЕНТОВАН -->
     <div x-show="modal === 'presented'" x-cloak

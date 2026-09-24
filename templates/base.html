@@ -90,6 +90,14 @@
         Врачи
     </a>
 
+
+      {% if user.role == 'ADMIN' or user.role == 'MANAGER' %}
+    <a href="{% url 'crm:users_list' %}"
+       class="px-3 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'users_list' %}bg-sky-100 text-sky-900{% else %}text-sky-700 hover:bg-sky-50{% endif %} transition">
+        Пользователи
+    </a>
+{% endif %}
+
                 </nav>
 
                 <!-- Dropdown пользователя -->
@@ -143,6 +151,8 @@
 
 
                 {% endif %}
+
+              
 
             </div>
         </div>

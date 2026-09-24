@@ -182,3 +182,18 @@ class TaskAdmin(admin.ModelAdmin):
     list_filter = ("task_type", "status", "priority")
     search_fields = ("description", "case__patient__last_name")
     autocomplete_fields = ("case", "assignee")
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "actor", "action", "model_name", "object_repr", "field_name", "old_value", "new_value")
+    list_filter = ("action", "model_name", "created_at")
+    search_fields = ("object_repr", "actor__username", "old_value", "new_value")
+    readonly_fields = [f.name for f in AuditLog._meta.fields]  # журнал только для чтения
+    date_hierarchy = "created_at"
+
+    def has_add_permission(self, request):
+        return False  # записи аудита нельзя создавать вручную
+
+    def has_delete_permission(self, request, obj=None):
+        return False  # и нельзя удалять

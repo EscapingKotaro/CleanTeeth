@@ -696,3 +696,127 @@ def doctor_delete(request, doctor_id):
         messages.success(request, f"Врач «{name}» удалён.")
 
     return redirect("crm:doctors_list")
+
+
+from django.core.paginator import Paginator
+from django.contrib.auth.hashers import make_password
+
+
+def admin_or_manager_required(view_func):
+    """Управление пользователями — только Админ и Управляющая (ТЗ п.16)."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if request.user.role not in (CustomUser.Role.ADMIN, CustomUser.Role.MANAGER):
+            return HttpResponseForbidden("Недостаточно прав.")
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+@admin_or_manager_required
+def users_list(request):
+    query = request.GET.get("q", "").strip()
+    role_filter = request.GET.get("role", "")
+
+    queryset = CustomUser.objects.all().order_by("last_name", "first_name")
+    if query:
+        queryset = queryset.filter(
+            Q(username__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(email__icontains=query)
+        )
+    if role_filter:
+        queryset = queryset.filter(role=role_filter)
+
+    paginator = Paginator(queryset, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    search_params = request.GET.copy()
+    search_params.pop("page", None)
+
+    return render(request, "crm/users_list.html", {
+        "title": "Пользователи",
+        "page_obj": page_obj,
+        "total_count": paginator.count,
+        "roles": CustomUser.Role.choices,
+        "query": query,
+        "role_filter": role_filter,
+        "search_params": search_params.urlencode(),
+    })
+
+
+@admin_or_manager_required
+def user_create(request):
+    if request.method != "POST":
+        return redirect("crm:users_list")
+
+    username = request.POST.get("username", "").strip()
+    password = request.POST.get("password", "").strip()
+    if not username or not password:
+        messages.error(request, "Логин и пароль обязательны.")
+        return redirect("crm:users_list")
+
+    if CustomUser.objects.filter(username=username).exists():
+        messages.error(request, f"Пользователь с логином «{username}» уже существует.")
+        return redirect("crm:users_list")
+
+    CustomUser.objects.create(
+        username=username,
+        password=make_password(password),
+        first_name=request.POST.get("first_name", "").strip(),
+        last_name=request.POST.get("last_name", "").strip(),
+        email=request.POST.get("email", "").strip(),
+        phone=request.POST.get("phone", "").strip(),
+        role=request.POST.get("role", CustomUser.Role.CURATOR),
+        is_active=request.POST.get("is_active") == "on",
+    )
+    # Аудит создания сработает автоматически в save()
+    messages.success(request, f"Пользователь «{username}» создан.")
+    return redirect("crm:users_list")
+
+
+@admin_or_manager_required
+def user_update(request, user_id):
+    user = get_object_or_404(CustomUser, id=user_id)
+    if request.method != "POST":
+        return redirect("crm:users_list")
+
+    user.first_name = request.POST.get("first_name", user.first_name).strip()
+    user.last_name = request.POST.get("last_name", user.last_name).strip()
+    user.email = request.POST.get("email", "").strip()
+    user.phone = request.POST.get("phone", "").strip()
+    user.role = request.POST.get("role", user.role)
+    # is_active меняем отдельным действием, здесь не трогаем
+    user.save()  # аудит роли сработает в save()
+
+    # Опциональная смена пароля
+    new_password = request.POST.get("new_password", "").strip()
+    if new_password:
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+        log_action(
+            action=AuditLog.Action.PASSWORD_CHANGE,
+            instance=user,
+            field_name="password",
+            comment="Пароль изменён вручную",
+        )
+
+    messages.success(request, "Пользователь обновлён.")
+    return redirect("crm:users_list")
+
+
+@admin_or_manager_required
+def user_toggle_active(request, user_id):
+    user = get_object_or_404(CustomUser, id=user_id)
+
+    # Защита: нельзя деактивировать самого себя
+    if user.id == request.user.id:
+        messages.error(request, "Нельзя деактивировать собственную учётную запись.")
+        return redirect("crm:users_list")
+
+    if request.method == "POST":
+        user.is_active = not user.is_active
+        user.save(update_fields=["is_active"])  # аудит в save()
+        state = "активирован" if user.is_active else "деактивирован"
+        messages.success(request, f"Пользователь «{user.username}» {state}.")
+    return redirect("crm:users_list")

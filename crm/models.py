@@ -50,7 +50,48 @@ class CustomUser(AbstractUser):
     @property
     def is_curator(self):
         return self.role in (self.Role.CURATOR, self.Role.SENIOR_CURATOR)
+    
+    def save(self, *args, **kwargs):
+        from .audit import log_action, get_current_user
 
+        is_new = self._state.adding
+        old = None
+        if not is_new and self.pk:
+            old = CustomUser.objects.filter(pk=self.pk).values(
+                "role", "is_active"
+            ).first()
+
+        super().save(*args, **kwargs)
+
+        # --- Аудит ---
+        if is_new:
+            log_action(
+                action=AuditLog.Action.CREATE,
+                instance=self,
+                field_name="role",
+                new_value=self.get_role_display(),
+                comment="Создан пользователь",
+            )
+        elif old:
+            if old["role"] != self.role:
+                log_action(
+                    action=AuditLog.Action.ROLE_CHANGE,
+                    instance=self,
+                    field_name="role",
+                    old_value=old["role"],
+                    new_value=self.role,
+                    comment="Смена роли",
+                )
+            if old["is_active"] != self.is_active:
+                act = AuditLog.Action.ACTIVATE if self.is_active else AuditLog.Action.DEACTIVATE
+                log_action(
+                    action=act,
+                    instance=self,
+                    field_name="is_active",
+                    old_value=str(old["is_active"]),
+                    new_value=str(self.is_active),
+                    comment="Деактивация" if not self.is_active else "Активация",
+                )
 
 
 class Doctor(models.Model):
@@ -543,3 +584,42 @@ class Task(models.Model):
     def is_overdue(self):
         from django.utils import timezone
         return self.status == self.TaskStatus.PENDING and self.due_date < timezone.now()
+
+
+class AuditLog(models.Model):
+    """Журнал критичных действий (ТЗ п.17). Кто / когда / что / старое / новое."""
+
+    class Action(models.TextChoices):
+        CREATE = "CREATE", "Создание"
+        UPDATE = "UPDATE", "Изменение"
+        DELETE = "DELETE", "Удаление"
+        ROLE_CHANGE = "ROLE_CHANGE", "Смена роли"
+        ACTIVATE = "ACTIVATE", "Активация"
+        DEACTIVATE = "DEACTIVATE", "Деактивация"
+        PASSWORD_CHANGE = "PASSWORD_CHANGE", "Смена пароля"
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="audit_actions",
+        verbose_name="Кто выполнил",
+    )
+    action = models.CharField("Действие", max_length=30, choices=Action.choices)
+    model_name = models.CharField("Сущность", max_length=100)
+    object_id = models.CharField("ID объекта", max_length=64, blank=True)
+    object_repr = models.CharField("Объект", max_length=255, blank=True)
+    field_name = models.CharField("Поле", max_length=100, blank=True)
+    old_value = models.TextField("Старое значение", blank=True)
+    new_value = models.TextField("Новое значение", blank=True)
+    comment = models.TextField("Комментарий", blank=True)
+    ip_address = models.GenericIPAddressField("IP", null=True, blank=True)
+    created_at = models.DateTimeField("Когда", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Запис аудита"
+        verbose_name_plural = "Аудит (журнал действий)"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_action_display()} · {self.model_name} #{self.object_id} · {self.created_at:%d.%m.%Y %H:%M}"

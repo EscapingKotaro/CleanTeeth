@@ -13,7 +13,7 @@
         <span class="text-sky-900 font-medium">Кейс #{{ case.id }}</span>
     </nav>
 
-    <!-- ==================== ВОРОНКА ==================== -->
+    <!-- ==================== ИНДИКАТОР ВОРОНКИ (без кнопок) ==================== -->
     <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4">
         <div class="flex items-center justify-between mb-3">
             <h2 class="text-sm font-bold text-sky-900 uppercase tracking-wide">Воронка кейса</h2>
@@ -25,45 +25,23 @@
             {% endif %}
         </div>
 
-        <div class="flex flex-wrap gap-2">
-            {% for value, label in funnel_steps %}
-                {% if case.is_active %}
-                <button
-                    {% if value == 'TRANSFERRED' %}
-                        onclick="window.location.href='?'" disabled
-                    {% elif value == 'PRESENTED' %}
-                        @click="modal = 'presented'"
-                    {% elif value == 'IN_DECISION' %}
-                        @click="modal = 'decision'"
-                    {% elif value == 'AGREED' %}
-                        @click="modal = 'agreed'"
-                    {% elif value == 'IN_PROGRESS' %}
-                        @click="modal = 'in_progress'"
-                    {% elif value == 'COMPLETED' %}
-                        @click="modal = 'complete'"
-                    {% endif %}
-                    class="px-3 py-1.5 rounded-lg text-sm font-medium border transition
-                        {% if case.status == value %}
-                            bg-sky-600 text-white border-sky-600
-                        {% else %}
-                            bg-white text-sky-700 border-sky-200 hover:bg-sky-50
-                        {% endif %}">
-                    {{ label }}
-                </button>
-                {% else %}
-                <span class="px-3 py-1.5 rounded-lg text-sm font-medium border
-                    {% if case.status == value %}bg-sky-600 text-white border-sky-600{% else %}bg-sky-50 text-sky-400 border-sky-100{% endif %}">
-                    {{ label }}
-                </span>
+        <!-- Прогресс по цепочке -->
+        <div class="flex flex-wrap items-center gap-1">
+            {% for step in funnel_steps %}
+                {% if not forloop.first %}
+                <svg class="w-4 h-4 text-sky-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
                 {% endif %}
+                <span class="px-3 py-1.5 rounded-lg text-sm font-medium border
+                    {% if step.is_current %}bg-sky-600 text-white border-sky-600
+                    {% elif step.is_past %}bg-sky-50 text-sky-700 border-sky-200
+                    {% else %}bg-white text-sky-400 border-sky-100{% endif %}
+                    {% if step.is_optional and not step.is_current %}border-dashed{% endif %}"
+                    {% if step.is_optional %}title="Необязательный шаг: пациент может согласиться сразу, минуя 'Решение в работе'"{% endif %}>
+                    {% if step.is_past %}✓ {% endif %}{{ step.label }}
+                </span>
             {% endfor %}
-
-            {% if case.is_active %}
-            <button @click="modal = 'lost'"
-                    class="px-3 py-1.5 rounded-lg text-sm font-medium border border-red-200 text-red-600 hover:bg-red-50 transition ml-auto">
-                Отказ / потерян
-            </button>
-            {% endif %}
         </div>
 
         {% if case.status == 'IN_DECISION' and case.decision_reason %}
@@ -125,10 +103,37 @@
 
         <!-- ПРАВАЯ: ПЛАН + ЧЕК-ЛИСТ -->
         <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <!-- КНОПКИ ДВИЖЕНИЯ ПО ВОРОНКЕ (с развилкой) -->
+            {% if case.is_active %}
+            <div class="flex flex-wrap gap-2 mb-4 pb-4 border-b border-sky-100">
+                {% for t in transitions %}
+                <button @click="modal = '{{ t.modal }}'"
+                        class="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium shadow-sm
+                            {% if t.style == 'success' %}bg-green-600 text-white hover:bg-green-700
+                            {% elif t.style == 'warning' %}bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-50
+                            {% else %}bg-sky-500 text-white hover:bg-sky-600{% endif %}">
+                    {{ t.label }}
+                </button>
+                {% endfor %}
+
+                <button @click="modal = 'lost'"
+                        class="inline-flex items-center px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm font-medium ml-auto">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    Отказ / потерян
+                </button>
+            </div>
+            {% endif %}
+
+            <!-- Заголовок блока плана -->
             <div class="flex justify-between items-start mb-4">
                 <h2 class="text-lg font-bold text-sky-900">План лечения</h2>
                 <button @click="modal = 'edit_plan'" class="text-sm text-sky-600 hover:text-sky-800 font-medium">Редактировать</button>
             </div>
+
+
+
 
             <div class="grid grid-cols-3 gap-3 mb-4">
                 <div class="bg-sky-50 rounded-lg p-3 text-center">

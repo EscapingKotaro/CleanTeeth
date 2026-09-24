@@ -110,6 +110,31 @@ def cases_list(request):
         ),
     })
 
+STATUS_TO_MODAL = {
+    CuratorCase.Status.PRESENTED: "presented",
+    CuratorCase.Status.IN_DECISION: "decision",
+    CuratorCase.Status.AGREED: "agreed",
+    CuratorCase.Status.IN_PROGRESS: "in_progress",
+    CuratorCase.Status.COMPLETED: "complete",
+}
+
+TRANSITION_UI = {
+    CuratorCase.Status.PRESENTED: {
+        "modal": "presented", "label": "План презентован", "style": "primary",
+    },
+    CuratorCase.Status.IN_DECISION: {
+        "modal": "decision", "label": "Пациент думает", "style": "warning",
+    },
+    CuratorCase.Status.AGREED: {
+        "modal": "agreed", "label": "План согласован", "style": "success",
+    },
+    CuratorCase.Status.IN_PROGRESS: {
+        "modal": "in_progress", "label": "Начать лечение", "style": "primary",
+    },
+    CuratorCase.Status.COMPLETED: {
+        "modal": "complete", "label": "Завершить лечение", "style": "success",
+    },
+}
 
 @login_required
 def case_detail(request, case_id):
@@ -119,6 +144,31 @@ def case_detail(request, case_id):
     )
     if request.user.role == CustomUser.Role.CURATOR and case.curator_id != request.user.id:
         return HttpResponseForbidden("У вас нет доступа к этому кейсу.")
+
+    # Кнопки переходов (с развилкой после презентации)
+    transitions = []
+    for status in case.next_statuses:
+        ui = TRANSITION_UI.get(status, {})
+        transitions.append({
+            "modal": ui.get("modal"),
+            "label": ui.get("label", dict(CuratorCase.Status.choices).get(status)),
+            "style": ui.get("style", "primary"),
+        })
+
+    # Шаги воронки для индикатора (с пометкой опционального шага)
+    choices = dict(CuratorCase.Status.choices)
+    current_idx = (
+        CuratorCase.FUNNEL_ORDER.index(case.status)
+        if case.status in CuratorCase.FUNNEL_ORDER else -1
+    )
+    funnel_steps = []
+    for i, s in enumerate(CuratorCase.FUNNEL_ORDER):
+        funnel_steps.append({
+            "label": choices.get(s),
+            "is_past": current_idx >= 0 and i < current_idx,
+            "is_current": i == current_idx,
+            "is_optional": s == CuratorCase.Status.IN_DECISION,
+        })
 
     return render(request, "crm/case_detail.html", {
         "title": f"Кейс #{case.id}",
@@ -134,6 +184,8 @@ def case_detail(request, case_id):
             role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
         ),
         "use_sidebar": True,
+        "transitions": transitions,
+        "funnel_steps": funnel_steps,
     })
 
 

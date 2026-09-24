@@ -149,7 +149,7 @@ class Patient(models.Model):
     created_at = models.DateTimeField("Создан", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлён", auto_now=True)
     is_active = models.BooleanField("Активен", default=True)
-    
+
     class Meta:
         verbose_name = "Пациент"
         verbose_name_plural = "Пациенты"
@@ -263,6 +263,24 @@ class CuratorCase(models.Model):
         COMPLETED = "COMPLETED", "Лечение завершено"
         LOST = "LOST", "Отказ / потерян"
 
+    FUNNEL_ORDER = [
+        Status.TRANSFERRED,
+        Status.PRESENTED,
+        Status.IN_DECISION,
+        Status.AGREED,
+        Status.IN_PROGRESS,
+        Status.COMPLETED,
+    ]
+    NEXT_STATUSES = {
+        Status.TRANSFERRED: [Status.PRESENTED],
+        Status.PRESENTED: [Status.IN_DECISION, Status.AGREED],   # ← развилка
+        Status.IN_DECISION: [Status.AGREED],
+        Status.AGREED: [Status.IN_PROGRESS],
+        Status.IN_PROGRESS: [Status.COMPLETED],
+        Status.COMPLETED: [],
+        Status.LOST: [],
+    }
+
     patient = models.ForeignKey(
         Patient,
         on_delete=models.CASCADE,
@@ -358,6 +376,11 @@ class CuratorCase(models.Model):
     def funnel_choices(cls):
         """Статусы воронки без закрывающего исхода."""
         return [c for c in cls.Status.choices if c[0] != cls.Status.LOST]
+
+    @property
+    def next_statuses(self):
+        """Список статусов, в которые можно перейти из текущего."""
+        return self.NEXT_STATUSES.get(self.status, [])
 
 
 

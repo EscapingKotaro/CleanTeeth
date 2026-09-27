@@ -226,11 +226,11 @@ class TreatmentPlan(models.Model):
     # --- Финансовые свойства ---
     @property
     def advance_paid(self):
-        """Сумма внесённых авансов."""
-        from django.db.models import Sum
-        return self.payments.filter(is_advance=True).aggregate(
-            total=Sum("amount")
-        )["total"] or 0
+        """Сумма внесённых авансов (аванс входит в график — п.10)."""
+        from django.db.models import Sum, Q
+        return self.payments.filter(
+            Q(is_advance=True) | Q(schedule_item__is_advance=True)
+        ).aggregate(total=Sum("amount"))["total"] or 0
 
     @property
     def total_paid(self):
@@ -270,7 +270,7 @@ class TreatmentPlan(models.Model):
             return self.has_advance and self.is_schedule_signed
         # Лечение по факту: согласован + подписан
         return True
-        
+
     class Meta:
         verbose_name = "План лечения"
         verbose_name_plural = "Планы лечения"
@@ -729,6 +729,7 @@ class PaymentSchedule(models.Model):
     paid_amount = models.DecimalField("Фактически оплачено", max_digits=12, decimal_places=2, default=0)
     payment_date = models.DateField("Дата оплаты", null=True, blank=True)
     comment = models.TextField("Комментарий", blank=True)
+    is_advance = models.BooleanField("Это аванс", default=False)
 
     class Meta:
         verbose_name = "Пункт графика платежей"

@@ -1,6 +1,6 @@
 from datetime import date
 from .models import CuratorMonthlyPlan, CustomUser,CuratorCase
-
+from views import ensure_payment_tasks
 
 def motivation_context(request):
     """Даёт текущую мотивацию куратора в любой шаблон (для сайдбара)."""

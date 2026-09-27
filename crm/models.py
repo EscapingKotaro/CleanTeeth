@@ -160,21 +160,19 @@ class Patient(models.Model):
 
 
 class Contract(models.Model):
-    """Договор на обслуживание пациента с клиникой в целом."""
+    """Договор пациента с клиникой в целом. Один действующий покрывает несколько планов."""
 
     class Status(models.TextChoices):
-        DRAFT = "DRAFT", "Проект"
+        DRAFT = "DRAFT", "Черновик"
         ACTIVE = "ACTIVE", "Действующий"
         CLOSED = "CLOSED", "Закрыт"
 
     patient = models.ForeignKey(
         Patient, on_delete=models.CASCADE, related_name="contracts", verbose_name="Пациент"
     )
-    number = models.CharField("Номер договора", max_length=50)
+    number = models.CharField("Номер договора", max_length=64)
     date = models.DateField("Дата договора")
-    status = models.CharField(
-        "Статус", max_length=20, choices=Status.choices, default=Status.DRAFT
-    )
+    status = models.CharField("Статус", max_length=16, choices=Status.choices, default=Status.DRAFT)
     comment = models.TextField("Комментарий", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -185,7 +183,8 @@ class Contract(models.Model):
         unique_together = ("patient", "number")
 
     def __str__(self):
-        return f"Договор №{self.number} от {self.date} ({self.patient})"
+        return f"Договор №{self.number} от {self.date:%d.%m.%Y} · {self.patient}"
+
 
 
 class TreatmentPlan(models.Model):
@@ -221,7 +220,57 @@ class TreatmentPlan(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # В поля модели:
+    is_schedule_signed = models.BooleanField("График платежей подписан", default=False)
 
+    # --- Финансовые свойства ---
+    @property
+    def advance_paid(self):
+        """Сумма внесённых авансов."""
+        from django.db.models import Sum
+        return self.payments.filter(is_advance=True).aggregate(
+            total=Sum("amount")
+        )["total"] or 0
+
+    @property
+    def total_paid(self):
+        """Все фактические оплаты по плану."""
+        from django.db.models import Sum
+        return self.payments.aggregate(total=Sum("amount"))["total"] or 0
+
+    @property
+    def remaining(self):
+        """Остаток = согласованная сумма - оплачено."""
+        return (self.agreed_sum or 0) - self.total_paid
+
+    @property
+    def has_advance(self):
+        return self.advance_paid > 0
+
+    # --- Направления: контроль суммы (п.5.1) ---
+    @property
+    def directions_total(self):
+        from django.db.models import Sum
+        return self.directions.aggregate(total=Sum("amount"))["total"] or 0
+
+    @property
+    def directions_mismatch(self):
+        """True, если сумма направлений не сходится с согласованной суммой."""
+        if not self.directions.exists():
+            return False
+        return self.directions_total != (self.agreed_sum or 0)
+
+    # --- Чек-лист «план готов к работе» (п.5.3) ---
+    @property
+    def is_ready_for_work(self):
+        if not self.agreement_date or not self.is_signed_by_patient or not self.plan_type:
+            return False
+        if self.plan_type == self.PlanType.WITH_ADVANCE:
+            # План с авансом: нужен аванс + подписанный график
+            return self.has_advance and self.is_schedule_signed
+        # Лечение по факту: согласован + подписан
+        return True
+        
     class Meta:
         verbose_name = "План лечения"
         verbose_name_plural = "Планы лечения"
@@ -595,6 +644,10 @@ class Task(models.Model):
     result = models.TextField("Результат", blank=True)
     created_at = models.DateTimeField("Создана", auto_now_add=True)
     completed_at = models.DateTimeField("Выполнена", null=True, blank=True)
+    schedule_item = models.ForeignKey(
+        "PaymentSchedule", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tasks", verbose_name="Пункт графика"
+    )
 
     class Meta:
         verbose_name = "Задача"
@@ -647,3 +700,79 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.get_action_display()} · {self.model_name} #{self.object_id} · {self.created_at:%d.%m.%Y %H:%M}"
+
+
+class PlanDirection(models.Model):
+    """Сумма по одному из 4 фиксированных направлений внутри плана."""
+    plan = models.ForeignKey(
+        TreatmentPlan, on_delete=models.CASCADE, related_name="directions", verbose_name="План"
+    )
+    direction = models.CharField("Направление", max_length=20, choices=Direction.choices)
+    amount = models.DecimalField("Сумма", max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = "Направление плана"
+        verbose_name_plural = "Направления плана"
+        unique_together = ("plan", "direction")
+
+    def __str__(self):
+        return f"{self.plan} · {self.get_direction_display()} · {self.amount}"
+
+
+class PaymentSchedule(models.Model):
+    """Пункт графика платежей (обязателен для плана с авансом)."""
+    plan = models.ForeignKey(
+        TreatmentPlan, on_delete=models.CASCADE, related_name="schedule", verbose_name="План"
+    )
+    due_date = models.DateField("Дата платежа")
+    planned_amount = models.DecimalField("Плановая сумма", max_digits=12, decimal_places=2)
+    paid_amount = models.DecimalField("Фактически оплачено", max_digits=12, decimal_places=2, default=0)
+    payment_date = models.DateField("Дата оплаты", null=True, blank=True)
+    comment = models.TextField("Комментарий", blank=True)
+
+    class Meta:
+        verbose_name = "Пункт графика платежей"
+        verbose_name_plural = "График платежей"
+        ordering = ["due_date"]
+
+    def __str__(self):
+        return f"{self.plan} · {self.due_date:%d.%m.%Y} · {self.planned_amount}"
+
+    @property
+    def remaining(self):
+        return self.planned_amount - self.paid_amount
+
+    @property
+    def is_overdue(self):
+        from django.utils import timezone
+        return self.remaining > 0 and self.due_date < timezone.now().date()
+
+    @property
+    def is_paid(self):
+        return self.remaining <= 0
+
+
+
+class Payment(models.Model):
+    """Фактическое движение денег по плану. Аванс — платёж с флагом."""
+    plan = models.ForeignKey(
+        TreatmentPlan, on_delete=models.CASCADE, related_name="payments", verbose_name="План"
+    )
+    amount = models.DecimalField("Сумма", max_digits=12, decimal_places=2)
+    payment_date = models.DateField("Дата оплаты")
+    is_advance = models.BooleanField("Это аванс", default=False)
+    schedule_item = models.ForeignKey(
+        PaymentSchedule, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="payments", verbose_name="Пункт графика"
+    )
+    comment = models.TextField("Комментарий", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Платёж"
+        verbose_name_plural = "Платежи"
+        ordering = ["-payment_date"]
+
+    def __str__(self):
+        kind = "Аванс" if self.is_advance else "Оплата"
+        return f"{kind} · {self.plan} · {self.amount} · {self.payment_date:%d.%m.%Y}"

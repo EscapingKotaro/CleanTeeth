@@ -57,6 +57,11 @@ def sidebar_context(request):
         month=now.month,
     ).first()
 
+    #!! Это «ленивая» автоматизация без Celer
+    for case in CuratorCase.objects.filter(curator=request.user, status__in=[...активные...]):
+        ensure_payment_tasks(case)
+    ##
+
     return {
         "sidebar_tasks": sidebar_tasks,
         "current_motivation": current_motivation,

@@ -498,6 +498,14 @@ def _apply_status_transition(case, new_status, post, user):
 
     # ===== 5. Лечение в процессе =====
     elif new_status == CuratorCase.Status.IN_PROGRESS:
+        # План должен быть готов к работе (п.5.3 + п.6 условие выхода)
+        if not case.plan.is_ready_for_work:
+            if case.plan.plan_type == TreatmentPlan.PlanType.WITH_ADVANCE:
+                errors.append(
+                    "План не готов к работе: внесите аванс и отметьте график подписанным."
+                )
+            else:
+                errors.append("План не готов к работе: нужно согласование и подпись пациента.")
         control_date = parse_date(post.get("next_control_date", ""))
         if not control_date:
             errors.append("Укажите следующий визит / контрольную дату.")
@@ -995,3 +1003,44 @@ def patient_delete(request, patient_id):
         messages.success(request, f"Пациент «{name}» удалён.")
 
     return redirect("crm:patients_list")
+
+
+
+from django.utils import timezone
+from datetime import timedelta
+
+
+def ensure_payment_tasks(case):
+    """
+    Для плана с авансом: если пункт графика наступил/просрочен и по нему
+    нет активной задачи — создать задачу «напомнить об оплате».
+    Защита от дублей — через Task.schedule_item.
+    """
+    plan = case.plan
+    if plan.plan_type != TreatmentPlan.PlanType.WITH_ADVANCE:
+        return
+
+    today = timezone.now().date()
+    horizon = today + timedelta(days=1)  # напоминаем за день и по просрочке
+
+    items = plan.schedule.filter(due_date__lte=horizon).exclude(
+        paid_amount__gte=models.F("planned_amount")
+    )
+
+    for item in items:
+        already = Task.objects.filter(
+            schedule_item=item, status=Task.TaskStatus.PENDING
+        ).exists()
+        if already:
+            continue
+        Task.objects.create(
+            case=case,
+            task_type=Task.TaskType.PAYMENT_REMINDER,
+            description=f"Напомнить об оплате {item.planned_amount} ₽ (плановая дата {item.due_date:%d.%m.%Y})",
+            due_date=timezone.make_aware(
+                datetime.combine(min(item.due_date, today), dtime(10, 0))
+            ),
+            assignee=case.curator,
+            priority=Task.Priority.HIGH if item.is_overdue else Task.Priority.MEDIUM,
+            schedule_item=item,
+        )

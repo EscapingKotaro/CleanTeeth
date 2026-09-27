@@ -53,4 +53,11 @@ urlpatterns = [
 
     path("motivation/", views.motivation_page, name="motivation_page"),
     path("motivation/plan/upsert/", views.monthly_plan_upsert, name="monthly_plan_upsert"),
+
+    path("patients/<int:patient_id>/contracts/create/", views.contract_create, name="contract_create"),
+    path("contracts/<int:contract_id>/update/", views.contract_update, name="contract_update"),
+
+    path("schedule/<int:item_id>/update/", views.schedule_item_update, name="schedule_item_update"),
+    path("schedule/<int:item_id>/delete/", views.schedule_item_delete, name="schedule_item_delete"),
+    path("plans/<int:plan_id>/schedule/generate/", views.schedule_generate, name="schedule_generate"),
 ]

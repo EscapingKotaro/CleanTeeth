@@ -273,6 +273,19 @@ class TreatmentPlan(models.Model):
         # Лечение по факту: согласован + подписан
         return True
 
+    @property
+    def schedule_total(self):
+        """Сумма всех пунктов графика."""
+        from django.db.models import Sum
+        return self.schedule.aggregate(total=Sum("planned_amount"))["total"] or 0
+
+    @property
+    def schedule_mismatch(self):
+        """Согласованное правило: сумма графика обязана равняться согласованной сумме."""
+        if not self.schedule.exists():
+            return False
+        return self.schedule_total != (self.agreed_sum or 0)
+
     class Meta:
         verbose_name = "План лечения"
         verbose_name_plural = "Планы лечения"
@@ -720,6 +733,11 @@ class PaymentSchedule(models.Model):
     @property
     def is_paid(self):
         return self.remaining <= 0
+
+    @property
+    def has_payments(self):
+        """Есть ли привязанные оплаты — защита от удаления."""
+        return self.payments.exists()
 
 
 

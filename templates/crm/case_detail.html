@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="space-y-6"
-     x-data="{ modal: null, taskId: null }">
+     x-data="{ modal: null, taskId: null, editItem: {}, deleteItem: {} }">
 
     <!-- Хлебные крошки -->
     <nav class="flex items-center space-x-2 text-sm text-sky-600">
@@ -13,7 +13,7 @@
         <span class="text-sky-900 font-medium">Кейс #{{ case.id }}</span>
     </nav>
 
-    <!-- ==================== ИНДИКАТОР ВОРОНКИ (без кнопок) ==================== -->
+    <!-- ==================== 1. ИНДИКАТОР ВОРОНКИ ==================== -->
     <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4">
         <div class="flex items-center justify-between mb-3">
             <h2 class="text-sm font-bold text-sky-900 uppercase tracking-wide">Воронка кейса</h2>
@@ -52,7 +52,7 @@
         {% endif %}
     </div>
 
-    <!-- Предупреждение о нарушении непрерывности -->
+    <!-- ==================== 2. ПРЕДУПРЕЖДЕНИЕ НЕПРЕРЫВНОСТИ ==================== -->
     {% if case.continuity_broken %}
     <div class="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
         <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,7 +68,75 @@
     </div>
     {% endif %}
 
-    <!-- ==================== ДВЕ КОЛОНКИ: ПАЦИЕНТ + ПЛАН ==================== -->
+    <!-- ==================== 3. ДОГОВОРЫ (ТЗ п.3, п.4, п.12) ==================== -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-bold text-sky-900">Договоры пациента</h2>
+            <button @click="modal = 'create_contract'"
+                    class="px-3 py-1.5 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">
+                + Новый договор
+            </button>
+        </div>
+
+        {% with active_contract=case.patient.contracts.all|dictsort:"-date"|first %}
+        {% if active_contract %}
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs text-green-600 uppercase font-semibold mb-1">Действующий договор</p>
+                    <p class="text-lg font-bold text-green-900">№{{ active_contract.number }}</p>
+                    <p class="text-sm text-green-700">от {{ active_contract.date|date:"d.m.Y" }}</p>
+                    <p class="text-xs text-green-600 mt-2">{{ active_contract.get_status_display }}</p>
+                </div>
+                <button @click="editContract = contractsData[{{ active_contract.id }}]; modal = 'edit_contract'"
+                        class="text-sm text-green-700 hover:text-green-900 font-medium">Изменить</button>
+            </div>
+            {% if active_contract.comment %}
+            <p class="text-sm text-green-700 mt-3 bg-white p-2 rounded">{{ active_contract.comment }}</p>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+            <p class="text-sm text-yellow-800">У пациента нет действующего договора</p>
+            <p class="text-xs text-yellow-600 mt-1">Создайте договор для начала работы</p>
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- История договоров -->
+        {% if case.patient.contracts.count > 1 %}
+        <div class="mt-4 pt-4 border-t border-sky-100">
+            <h3 class="text-sm font-semibold text-sky-900 mb-2">История договоров</h3>
+            <div class="space-y-1">
+                {% for contract in case.patient.contracts.all|dictsort:"-date" %}
+                {% if not forloop.first %}
+                <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 text-sm">
+                    <span class="text-gray-700">№{{ contract.number }} от {{ contract.date|date:"d.m.Y" }}</span>
+                    <span class="text-xs text-gray-500">{{ contract.get_status_display }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Данные договоров для модалки -->
+    <script>
+        const contractsData = {
+            {% for contract in case.patient.contracts.all %}
+            {{ contract.id }}: {
+                id: {{ contract.id }},
+                number: "{{ contract.number|escapejs }}",
+                date: "{{ contract.date|date:'Y-m-d' }}",
+                status: "{{ contract.status }}",
+                comment: "{{ contract.comment|escapejs }}"
+            },
+            {% endfor %}
+        };
+    </script>
+
+    <!-- ==================== 4. ДВЕ КОЛОНКИ: ПАЦИЕНТ + ПЛАН ==================== -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         <!-- ЛЕВАЯ: ПАЦИЕНТ -->
@@ -101,9 +169,9 @@
             </div>
         </div>
 
-        <!-- ПРАВАЯ: ПЛАН + ЧЕК-ЛИСТ -->
+        <!-- ПРАВАЯ: ПЛАН + КНОПКИ ДВИЖЕНИЯ -->
         <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
-        <!-- КНОПКИ ДВИЖЕНИЯ ПО ВОРОНКЕ (с развилкой) -->
+            <!-- КНОПКИ ДВИЖЕНИЯ ПО ВОРОНКЕ (с развилкой) -->
             {% if case.is_active %}
             <div class="flex flex-wrap gap-2 mb-4 pb-4 border-b border-sky-100">
                 {% for t in transitions %}
@@ -131,9 +199,6 @@
                 <h2 class="text-lg font-bold text-sky-900">План лечения</h2>
                 <button @click="modal = 'edit_plan'" class="text-sm text-sky-600 hover:text-sky-800 font-medium">Редактировать</button>
             </div>
-
-
-
 
             <div class="grid grid-cols-3 gap-3 mb-4">
                 <div class="bg-sky-50 rounded-lg p-3 text-center">
@@ -181,11 +246,13 @@
                         {% if p.plan_type %}<svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>{% else %}<svg class="w-4 h-4 text-sky-300 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>{% endif %}
                         Тип плана {% if p.plan_type %}: {{ p.get_plan_type_display }}{% endif %}
                     </li>
-                    <li class="flex items-center text-sky-400">
-                        <svg class="w-4 h-4 text-sky-300 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>Аванс внесён <span class="text-xs ml-1">(после фин. блока)</span>
+                    <li class="flex items-center {% if p.has_advance %}text-sky-700{% else %}text-sky-400{% endif %}">
+                        {% if p.has_advance %}<svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>{% else %}<svg class="w-4 h-4 text-sky-300 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>{% endif %}
+                        Аванс внесён {% if p.has_advance %}({{ p.advance_paid }} ₽){% endif %}
                     </li>
-                    <li class="flex items-center text-sky-400">
-                        <svg class="w-4 h-4 text-sky-300 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>График подписан <span class="text-xs ml-1">(после фин. блока)</span>
+                    <li class="flex items-center {% if p.is_schedule_signed %}text-sky-700{% else %}text-sky-400{% endif %}">
+                        {% if p.is_schedule_signed %}<svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>{% else %}<svg class="w-4 h-4 text-sky-300 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>{% endif %}
+                        График подписан
                     </li>
                     {% endwith %}
                     <li class="flex items-center pt-2 mt-2 border-t border-sky-200 {% if case.plan.is_ready_for_work %}text-green-700 font-bold{% else %}text-yellow-700 font-bold{% endif %}">
@@ -200,65 +267,7 @@
         </div>
     </div>
 
-        <!-- РЕДАКТИРОВАТЬ ПЛАН -->
-    <div x-show="modal === 'edit_plan'" x-cloak
-         class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <form method="post" action="{% url 'crm:plan_update' case.plan.id %}"
-              class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" @click.stop>
-            {% csrf_token %}
-            <h3 class="text-lg font-bold text-sky-900 mb-4">Редактировать план лечения</h3>
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Первоначальная, ₽</label>
-                        <input type="number" step="0.01" name="initial_sum" value="{{ case.plan.initial_sum }}"
-                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Презентация, ₽</label>
-                        <input type="number" step="0.01" name="presentation_sum" value="{{ case.plan.presentation_sum }}"
-                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Согласованная, ₽</label>
-                        <input type="number" step="0.01" name="agreed_sum" value="{{ case.plan.agreed_sum }}"
-                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Дата презентации</label>
-                        <input type="date" name="presentation_date" value="{{ case.plan.presentation_date|date:'Y-m-d' }}"
-                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Дата согласования</label>
-                        <input type="date" name="agreement_date" value="{{ case.plan.agreement_date|date:'Y-m-d' }}"
-                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-sky-700 mb-1">Тип плана</label>
-                    <select name="plan_type" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                        <option value="">Не выбран</option>
-                        <option value="ADVANCE" {% if case.plan.plan_type == 'ADVANCE' %}selected{% endif %}>План с авансом</option>
-                        <option value="FACT" {% if case.plan.plan_type == 'FACT' %}selected{% endif %}>Без аванса / лечение по факту</option>
-                    </select>
-                </div>
-                <label class="flex items-center gap-2">
-                    <input type="checkbox" name="is_signed_by_patient" value="true" {% if case.plan.is_signed_by_patient %}checked{% endif %}
-                           class="h-4 w-4 text-sky-600 border-sky-300 rounded focus:ring-sky-500">
-                    <span class="text-sm text-sky-900">План подписан пациентом</span>
-                </label>
-            </div>
-            <div class="flex justify-end gap-2 mt-6">
-                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
-                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Сохранить</button>
-            </div>
-        </form>
-    </div>
-
-    <!-- ==================== ФИНАНСОВЫЙ БЛОК ==================== -->
+    <!-- ==================== 5. ФИНАНСОВЫЙ БЛОК ==================== -->
     <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-bold text-sky-900">Финансы по плану</h2>
@@ -313,16 +322,32 @@
             </div>
         </div>
 
-        <!-- График платежей (только для плана с авансом) -->
+                <!-- График платежей (только для плана с авансом) -->
         {% if case.plan.plan_type == 'ADVANCE' %}
         <div class="mb-6">
-            <div class="flex justify-between items-center mb-2">
+            <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
                 <h3 class="text-sm font-bold text-sky-900">
                     График платежей
                     {% if case.plan.is_schedule_signed %}<span class="text-xs text-green-600 font-medium ml-1">✓ подписан</span>{% endif %}
                 </h3>
-                <button @click="modal = 'schedule_item'" class="text-sm text-sky-600 hover:text-sky-800 font-medium">+ Пункт графика</button>
+                <div class="flex gap-2">
+                    <button @click="modal = 'schedule_generate'" class="text-sm text-sky-600 hover:text-sky-800 font-medium">⚡ Сгенерировать</button>
+                    <button @click="modal = 'schedule_item'" class="text-sm text-sky-600 hover:text-sky-800 font-medium">+ Пункт</button>
+                </div>
             </div>
+
+            <!-- Контроль суммы (согласованное правило) -->
+            {% if case.plan.schedule.exists %}
+            <div class="mb-3 p-3 rounded-lg text-sm
+                {% if case.plan.schedule_mismatch %}bg-red-50 border border-red-200 text-red-700{% else %}bg-green-50 border border-green-200 text-green-700{% endif %}">
+                {% if case.plan.schedule_mismatch %}
+                ⚠ Сумма графика {{ case.plan.schedule_total }} ₽ ≠ согласованная {{ case.plan.agreed_sum }} ₽. Подписать график нельзя.
+                {% else %}
+                ✓ Сумма графика сходится с согласованной: {{ case.plan.schedule_total }} ₽.
+                {% endif %}
+            </div>
+            {% endif %}
+
             {% if case.plan.schedule.all %}
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-sky-100 text-sm">
@@ -333,6 +358,7 @@
                             <th class="px-3 py-2 text-left text-xs font-semibold text-sky-600 uppercase">Оплачено</th>
                             <th class="px-3 py-2 text-left text-xs font-semibold text-sky-600 uppercase">Остаток</th>
                             <th class="px-3 py-2 text-left text-xs font-semibold text-sky-600 uppercase">Статус</th>
+                            <th class="px-3 py-2 text-right text-xs font-semibold text-sky-600 uppercase">Действия</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-sky-100">
@@ -354,13 +380,46 @@
                                 <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-700">Предстоит</span>
                                 {% endif %}
                             </td>
+                            <td class="px-3 py-2 text-right whitespace-nowrap">
+                                <button @click="editItem = scheduleItemsData[{{ item.id }}]; modal = 'edit_schedule_item'"
+                                        class="text-xs text-sky-600 hover:text-sky-900 font-medium mr-2">Изм.</button>
+                                {% if item.has_payments %}
+                                <span class="text-xs text-gray-400 cursor-not-allowed" title="Нельзя удалить: привязана оплата">🔒</span>
+                                {% else %}
+                                <button @click="deleteItem = scheduleItemsData[{{ item.id }}]; modal = 'delete_schedule_item'"
+                                        class="text-xs text-red-600 hover:text-red-800 font-medium">Удал.</button>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
+                    <tfoot>
+                        <tr class="bg-sky-50 font-semibold">
+                            <td class="px-3 py-2 text-sky-900">Итого</td>
+                            <td class="px-3 py-2 text-sky-900">{{ case.plan.schedule_total }} ₽</td>
+                            <td colspan="4"></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
+
+            <!-- Данные пунктов для модалок -->
+            <script>
+                const scheduleItemsData = {
+                    {% for item in case.plan.schedule.all %}
+                    {{ item.id }}: {
+                        id: {{ item.id }},
+                        due_date: "{{ item.due_date|date:'Y-m-d' }}",
+                        planned_amount: "{{ item.planned_amount }}",
+                        is_advance: {{ item.is_advance|yesno:"true,false" }},
+                        comment: "{{ item.comment|escapejs }}",
+                        label: "{{ item.due_date|date:'d.m.Y' }} · {{ item.planned_amount }} ₽"
+                    },
+                    {% endfor %}
+                };
+            </script>
             {% else %}
-            <p class="text-sm text-sky-500">График платежей не создан. Добавьте пункты.</p>
+            <p class="text-sm text-sky-500">График не создан. Нажмите «Сгенерировать» или добавьте пункты вручную.</p>
             {% endif %}
         </div>
         {% endif %}
@@ -391,7 +450,7 @@
         </div>
     </div>
 
-    <!-- ==================== ЗАДАЧИ ==================== -->
+    <!-- ==================== 6. ЗАДАЧИ ==================== -->
     <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-bold text-sky-900">Задачи по кейсу</h2>
@@ -470,7 +529,78 @@
     <!-- Общий бэкдроп -->
     <div x-show="modal" x-cloak class="fixed inset-0 z-40 bg-sky-900 bg-opacity-50" @click="modal = null"></div>
 
+   <!-- СОЗДАТЬ ДОГОВОР -->
+    <div x-show="modal === 'create_contract'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <form method="post" action="{% url 'crm:contract_create' case.patient.id %}"
+              class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
+            {% csrf_token %}
+            <h3 class="text-lg font-bold text-sky-900 mb-4">Новый договор</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Номер договора <span class="text-red-500">*</span></label>
+                    <input type="text" name="number" required class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Дата договора <span class="text-red-500">*</span></label>
+                    <input type="date" name="date" required value="{% now 'Y-m-d' %}" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Статус</label>
+                    <select name="status" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                        <option value="DRAFT">Черновик</option>
+                        <option value="ACTIVE" selected>Действующий</option>
+                        <option value="CLOSED">Закрыт</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Комментарий</label>
+                    <textarea name="comment" rows="2" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
+                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Создать</button>
+            </div>
+        </form>
+    </div>
 
+    <!-- РЕДАКТИРОВАТЬ ДОГОВОР -->
+    <div x-show="modal === 'edit_contract'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <form method="post" :action="'{% url 'crm:contracts_list' %}' + editContract.id + '/update/'"
+              class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
+            {% csrf_token %}
+            <h3 class="text-lg font-bold text-sky-900 mb-4">Редактировать договор</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Номер договора</label>
+                    <input type="text" name="number" x-model="editContract.number" required class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Дата договора</label>
+                    <input type="date" name="date" x-model="editContract.date" required class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Статус</label>
+                    <select name="status" x-model="editContract.status" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                        <option value="DRAFT">Черновик</option>
+                        <option value="ACTIVE">Действующий</option>
+                        <option value="CLOSED">Закрыт</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Комментарий</label>
+                    <textarea name="comment" rows="2" x-model="editContract.comment" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
+                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Сохранить</button>
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}
 
         <!-- НАПРАВЛЕНИЯ -->
     <div x-show="modal === 'directions'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -496,6 +626,96 @@
         </form>
     </div>
 
+    <!-- РЕДАКТИРОВАТЬ ПУНКТ ГРАФИКА -->
+    <div x-show="modal === 'edit_schedule_item'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <form method="post" :action="'{% url 'crm:schedule_item_update' 0 %}'.replace('/0/', '/' + editItem.id + '/')"
+              class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
+            {% csrf_token %}
+            <h3 class="text-lg font-bold text-sky-900 mb-4">Пункт графика</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Дата платежа <span class="text-red-500">*</span></label>
+                    <input type="date" name="due_date" x-model="editItem.due_date" required
+                           class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Сумма, ₽ <span class="text-red-500">*</span></label>
+                    <input type="number" step="0.01" name="planned_amount" x-model="editItem.planned_amount" required
+                           class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                </div>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="is_advance" x-model="editItem.is_advance" class="h-4 w-4 text-sky-600 border-sky-300 rounded">
+                    <span class="text-sm text-sky-900">Это аванс</span>
+                </label>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Комментарий</label>
+                    <input type="text" name="comment" x-model="editItem.comment"
+                           class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
+                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Сохранить</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- УДАЛИТЬ ПУНКТ ГРАФИКА -->
+    <div x-show="modal === 'delete_schedule_item'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <form method="post" :action="'{% url 'crm:schedule_item_delete' 0 %}'.replace('/0/', '/' + deleteItem.id + '/')"
+              class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
+            {% csrf_token %}
+            <h3 class="text-lg font-bold text-sky-900 mb-2">Удалить пункт графика?</h3>
+            <p class="text-sm text-sky-600 mb-4">Пункт «<span x-text="deleteItem.label"></span>» будет удалён. Действие попадёт в журнал аудита.</p>
+            <div class="flex justify-end gap-2">
+                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Удалить</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- СГЕНЕРИРОВАТЬ ГРАФИК -->
+    <div x-show="modal === 'schedule_generate'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <form method="post" action="{% url 'crm:schedule_generate' case.plan.id %}"
+              class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
+            {% csrf_token %}
+            <h3 class="text-lg font-bold text-sky-900 mb-1">Сгенерировать график</h3>
+            <p class="text-xs text-sky-500 mb-4">
+                Первый пункт — аванс (автоматически). Остаток делится на равные ежемесячные платежи.
+                Текущие пункты без оплат будут заменены.
+            </p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Сумма графика, ₽ <span class="text-red-500">*</span></label>
+                    <input type="number" step="0.01" name="total_amount" value="{{ case.plan.agreed_sum }}" required
+                           class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    <p class="text-xs text-sky-500 mt-1">Обязана равняться согласованной сумме.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-sky-700 mb-1">Аванс, ₽</label>
+                    <input type="number" step="0.01" name="advance_amount" value="0"
+                           class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Платежей после аванса</label>
+                        <input type="number" name="parts" value="3" min="1" required
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-sky-700 mb-1">Дата аванса</label>
+                        <input type="date" name="start_date" value="{% now 'Y-m-d' %}"
+                               class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
+                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Сгенерировать</button>
+            </div>
+        </form>
+    </div>
+
     <!-- ПУНКТ ГРАФИКА -->
     <div x-show="modal === 'schedule_item'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <form method="post" action="{% url 'crm:schedule_item_create' case.plan.id %}"
@@ -512,8 +732,10 @@
                     <input type="number" step="0.01" name="planned_amount" required class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
                 </div>
                 <label class="flex items-center gap-2">
-                    <input type="checkbox" name="is_advance" class="h-4 w-4 text-sky-600 border-sky-300 rounded">
-                    <span class="text-sm text-sky-900">Это аванс</span>
+                    <input type="checkbox" name="is_advance"
+                           {% if not case.plan.schedule.all and case.plan.plan_type == 'ADVANCE' %}checked{% endif %}
+                           class="h-4 w-4 text-sky-600 border-sky-300 rounded">
+                    <span class="text-sm text-sky-900">Это аванс (первый пункт графика)</span>
                 </label>
                 <div>
                     <label class="block text-sm font-medium text-sky-700 mb-1">Комментарий</label>

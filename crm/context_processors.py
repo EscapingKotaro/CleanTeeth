@@ -1,5 +1,5 @@
 from datetime import date
-from .models import CuratorMonthlyPlan, CustomUser
+from .models import CuratorMonthlyPlan, CustomUser,CuratorCase
 
 
 def motivation_context(request):

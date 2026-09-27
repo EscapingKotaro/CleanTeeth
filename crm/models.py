@@ -496,6 +496,10 @@ class CuratorMonthlyPlan(models.Model):
         return self.year == today.year and self.month == today.month
 
     @property
+    def period_label(self):
+        """Период в формате '09.2026' — для админки и шаблонов."""
+        return f"{self.month:02d}.{self.year}"
+    @property
     def pace_percent(self):
         """Темп: факт к тому, что должно было быть к сегодняшнему дню."""
         if not self.is_current or not self.plan_amount:

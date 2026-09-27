@@ -16,6 +16,8 @@ from .models import Doctor, Direction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.db.models import F
 
+from .audit import log_action
+
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
 class CustomLoginView(auth_views.LoginView):

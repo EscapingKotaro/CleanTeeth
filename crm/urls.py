@@ -45,4 +45,12 @@ urlpatterns = [
     path("patients/create/", views.patient_create, name="patient_create"),
     path("patients/<int:patient_id>/update/", views.patient_update, name="patient_update"),
     path("patients/<int:patient_id>/delete/", views.patient_delete, name="patient_delete"),
+
+    path("plans/<int:plan_id>/directions/", views.plan_directions_update, name="plan_directions_update"),
+    path("plans/<int:plan_id>/schedule/create/", views.schedule_item_create, name="schedule_item_create"),
+    path("plans/<int:plan_id>/schedule/sign/", views.schedule_sign, name="schedule_sign"),
+    path("plans/<int:plan_id>/payment/create/", views.payment_create, name="payment_create"),
+
+    path("motivation/", views.motivation_page, name="motivation_page"),
+    path("motivation/plan/upsert/", views.monthly_plan_upsert, name="monthly_plan_upsert"),
 ]

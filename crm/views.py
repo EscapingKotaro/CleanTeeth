@@ -14,6 +14,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from .models import Doctor, Direction
 from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import F
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
@@ -1012,19 +1013,20 @@ from datetime import timedelta
 
 def ensure_payment_tasks(case):
     """
-    Для плана с авансом: если пункт графика наступил/просрочен и по нему
-    нет активной задачи — создать задачу «напомнить об оплате».
-    Защита от дублей — через Task.schedule_item.
+    Для плана с авансом: если до платежа <= 1 дня и он не оплачен —
+    создать задачу-напоминание куратору. Просроченные — с высоким приоритетом.
+    Защита от дублей через Task.schedule_item.
     """
     plan = case.plan
     if plan.plan_type != TreatmentPlan.PlanType.WITH_ADVANCE:
         return
 
     today = timezone.now().date()
-    horizon = today + timedelta(days=1)  # напоминаем за день и по просрочке
+    horizon = today + timedelta(days=1)  # напоминаем за 1 день
 
-    items = plan.schedule.filter(due_date__lte=horizon).exclude(
-        paid_amount__gte=models.F("planned_amount")
+    items = (
+        plan.schedule.filter(due_date__lte=horizon)
+        .exclude(paid_amount__gte=F("planned_amount"))
     )
 
     for item in items:
@@ -1033,14 +1035,240 @@ def ensure_payment_tasks(case):
         ).exists()
         if already:
             continue
+
+        due_dt = timezone.make_aware(
+            datetime.combine(item.due_date, dtime(10, 0))
+        )
         Task.objects.create(
             case=case,
             task_type=Task.TaskType.PAYMENT_REMINDER,
-            description=f"Напомнить об оплате {item.planned_amount} ₽ (плановая дата {item.due_date:%d.%m.%Y})",
-            due_date=timezone.make_aware(
-                datetime.combine(min(item.due_date, today), dtime(10, 0))
+            description=(
+                f"Напомнить об оплате {item.planned_amount - item.paid_amount} ₽ "
+                f"(плановая дата {item.due_date:%d.%m.%Y}"
+                f"{', аванс' if item.is_advance else ''})"
             ),
+            due_date=due_dt,
             assignee=case.curator,
             priority=Task.Priority.HIGH if item.is_overdue else Task.Priority.MEDIUM,
             schedule_item=item,
         )
+
+@login_required
+def plan_directions_update(request, plan_id):
+    plan = get_object_or_404(TreatmentPlan, id=plan_id)
+    if request.method != "POST":
+        return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+    changes = []
+    with transaction.atomic():
+        for direction_value, _ in Direction.choices:
+            amount = _to_decimal(request.POST.get(f"direction_{direction_value}", 0))
+            obj, _ = PlanDirection.objects.update_or_create(
+                plan=plan, direction=direction_value, defaults={"amount": amount}
+            )
+            changes.append(f"{obj.get_direction_display()}: {amount}")
+
+    log_action(
+        action=AuditLog.Action.UPDATE,
+        instance=plan,
+        field_name="directions",
+        new_value="; ".join(changes),
+        comment="Обновлены суммы по направлениям",
+    )
+    messages.success(request, "Направления сохранены.")
+    return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+@login_required
+def schedule_item_create(request, plan_id):
+    plan = get_object_or_404(TreatmentPlan, id=plan_id)
+    if request.method != "POST":
+        return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+    due_date = parse_date(request.POST.get("due_date", ""))
+    amount = _to_decimal(request.POST.get("planned_amount", 0))
+    is_advance = request.POST.get("is_advance") == "on"
+
+    if not due_date or amount <= 0:
+        messages.error(request, "Укажите дату и сумму пункта графика.")
+        return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+    item = PaymentSchedule.objects.create(
+        plan=plan,
+        due_date=due_date,
+        planned_amount=amount,
+        is_advance=is_advance,
+        comment=request.POST.get("comment", "").strip(),
+    )
+
+    log_action(
+        action=AuditLog.Action.CREATE,
+        instance=plan,
+        field_name="schedule",
+        new_value=f"{due_date:%d.%m.%Y} · {amount} ₽ {'(аванс)' if is_advance else ''}",
+        comment="Добавлен пункт графика платежей",
+    )
+    messages.success(request, "Пункт графика добавлен.")
+    return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+
+@login_required
+def schedule_sign(request, plan_id):
+    plan = get_object_or_404(TreatmentPlan, id=plan_id)
+    if request.method == "POST":
+        plan.is_schedule_signed = True
+        plan.save(update_fields=["is_schedule_signed"])
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            instance=plan,
+            field_name="is_schedule_signed",
+            new_value="Подписан",
+            comment="График платежей отмечен подписанным",
+        )
+        messages.success(request, "График отмечен как подписанный.")
+    return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+
+@login_required
+def payment_create(request, plan_id):
+    plan = get_object_or_404(TreatmentPlan, id=plan_id)
+    if request.method != "POST":
+        return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+    amount = _to_decimal(request.POST.get("amount", 0))
+    payment_date = parse_date(request.POST.get("payment_date", "")) or timezone.now().date()
+    schedule_item_id = request.POST.get("schedule_item_id") or None
+
+    if amount <= 0:
+        messages.error(request, "Сумма платежа должна быть больше нуля.")
+        return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+    schedule_item = None
+    is_advance = request.POST.get("is_advance") == "on"
+    if schedule_item_id:
+        schedule_item = PaymentSchedule.objects.filter(id=schedule_item_id, plan=plan).first()
+        # Аванс по авансовому пункту графика — автоматически авансовый платёж
+        if schedule_item and schedule_item.is_advance:
+            is_advance = True
+
+    with transaction.atomic():
+        Payment.objects.create(
+            plan=plan,
+            amount=amount,
+            payment_date=payment_date,
+            is_advance=is_advance,
+            schedule_item=schedule_item,
+            comment=request.POST.get("comment", "").strip(),
+        )
+        # Если привязан к пункту графика — зачитываем в счёт него
+        if schedule_item:
+            schedule_item.paid_amount = F("paid_amount") + amount
+            schedule_item.save(update_fields=["paid_amount"])
+            schedule_item.refresh_from_db()
+            if schedule_item.paid_amount >= schedule_item.planned_amount and not schedule_item.payment_date:
+                schedule_item.payment_date = payment_date
+                schedule_item.save(update_fields=["payment_date"])
+
+    log_action(
+        action=AuditLog.Action.CREATE,
+        instance=plan,
+        field_name="payment",
+        new_value=f"{amount} ₽ · {'аванс' if is_advance else 'оплата'} · {payment_date:%d.%m.%Y}",
+        comment="Внесён платёж",
+    )
+    messages.success(request, f"Платёж {amount} ₽ внесён.")
+    return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+
+
+
+def compute_k1(curator, year, month):
+    """Сумма согласованных сумм планов куратора, согласованных в указанном месяце."""
+    from django.db.models import Sum
+
+    plan_ids = (
+        CuratorCase.objects.filter(
+            curator=curator,
+            plan__agreement_date__year=year,
+            plan__agreement_date__month=month,
+        )
+        .values_list("plan_id", flat=True)
+        .distinct()
+    )
+    total = TreatmentPlan.objects.filter(id__in=plan_ids).aggregate(
+        total=Sum("agreed_sum")
+    )["total"]
+    return total or 0
+
+from .motivation import calculate_bonuses
+
+
+@login_required
+def motivation_page(request):
+    """Личная страница мотивации. Куратор — свою; старший/управляющая — любого куратора."""
+    today = timezone.now().date()
+    target_user = request.user
+
+    # Старший куратор и управляющая могут смотреть любого куратора
+    if request.user.role in (
+        CustomUser.Role.SENIOR_CURATOR, CustomUser.Role.MANAGER, CustomUser.Role.ADMIN
+    ):
+        user_id = request.GET.get("user_id")
+        if user_id:
+            target_user = get_object_or_404(CustomUser, id=user_id)
+
+    monthly_plan = CuratorMonthlyPlan.objects.filter(
+        curator=target_user, year=today.year, month=today.month
+    ).first()
+
+    history = CuratorMonthlyPlan.objects.filter(curator=target_user).order_by("-year", "-month")[:12]
+
+    # Список кураторов для переключателя (для руководителей)
+    curators = CustomUser.objects.filter(
+        role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
+    ).order_by("last_name")
+
+    can_manage = request.user.role in (CustomUser.Role.MANAGER, CustomUser.Role.ADMIN)
+
+    return render(request, "crm/motivation.html", {
+        "title": "Мотивация",
+        "target_user": target_user,
+        "monthly_plan": monthly_plan,
+        "history": history,
+        "curators": curators,
+        "is_own": target_user.id == request.user.id,
+        "can_manage": can_manage,
+    })
+
+
+@manager_required
+def monthly_plan_upsert(request):
+    """Управляющая задаёт/правит индивидуальный план куратора на месяц."""
+    if request.method != "POST":
+        return redirect("crm:motivation_page")
+
+    curator_id = request.POST.get("curator_id")
+    year = int(request.POST.get("year", timezone.now().year))
+    month = int(request.POST.get("month", timezone.now().month))
+
+    curator = get_object_or_404(CustomUser, id=curator_id)
+
+    plan, created = CuratorMonthlyPlan.objects.update_or_create(
+        curator=curator, year=year, month=month,
+        defaults={
+            "plan_amount": _to_decimal(request.POST.get("plan_amount")),
+            "adjustments": _to_decimal(request.POST.get("adjustments")),
+            "workorders_amount": _to_decimal(request.POST.get("workorders_amount")),
+            "set_by": request.user,
+            "work_days": int(request.POST.get("work_days", 0) or 0),
+        },
+    )
+
+    log_action(
+        action=AuditLog.Action.UPDATE if not created else AuditLog.Action.CREATE,
+        instance=plan,
+        field_name="monthly_plan",
+        new_value=f"план {plan.plan_amount}, корр. {plan.adjustments}, з/н {plan.workorders_amount}",
+        comment=f"Месячный план {curator} на {month:02d}.{year}",
+    )
+    messages.success(request, f"План для {curator} на {month:02d}.{year} сохранён.")
+    return redirect(f"{reverse('crm:motivation_page')}?user_id={curator.id}")

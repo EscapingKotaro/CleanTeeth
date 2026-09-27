@@ -439,42 +439,26 @@ from decimal import Decimal
 
 
 class CuratorMonthlyPlan(models.Model):
-    """Индивидуальный месячный план куратора (задаёт управляющая).
-    Факт (К1) считается динамически по согласованным планам."""
-
-    # ============================================================
-    # КОНФИГ МОТИВАЦИИ (пока константы-заглушки).
-    # По ТЗ формулы бонусов желательно вынести в настраиваемую
-    # конфигурацию. Реальные формулы берём из Google-файла заказчика.
-    # ============================================================
-    BONUS_1_THRESHOLD = Decimal("80")    # % выполнения
-    BONUS_1_AMOUNT = Decimal("5000")     # ₽ — ЗАГЛУШКА, согласовать!
-    BONUS_2_THRESHOLD = Decimal("100")
-    BONUS_2_AMOUNT = Decimal("10000")    # ЗАГЛУШКА
-    BONUS_3_THRESHOLD = Decimal("120")
-    BONUS_3_AMOUNT = Decimal("15000")    # ЗАГЛУШКА
+    """Индивидуальный месячный план куратора. Задаётся управляющей (ТЗ п.13)."""
 
     curator = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="monthly_plans",
-        verbose_name="Куратор",
-        limit_choices_to={"role__in": [CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]},
+        CustomUser, on_delete=models.CASCADE, related_name="monthly_plans", verbose_name="Куратор"
     )
     year = models.PositiveIntegerField("Год")
-    month = models.PositiveIntegerField("Месяц")  # 1-12
-
-    plan_amount = models.DecimalField(
-        "Индивидуальный план (₽)", max_digits=12, decimal_places=2, default=0
-    )
+    month = models.PositiveIntegerField("Месяц")  # 1–12
+    plan_amount = models.DecimalField("Индивидуальный план, ₽", max_digits=12, decimal_places=2, default=0)
     adjustments = models.DecimalField(
-        "Корректировки (₽)", max_digits=12, decimal_places=2, default=0
+        "Корректировки (возвраты по КПЛ / мат. капитал), ₽",
+        max_digits=12, decimal_places=2, default=0,
     )
     workorders_amount = models.DecimalField(
-        "Заказ-наряды (₽)", max_digits=12, decimal_places=2, default=0
+        "Итого заказ-нарядов, ₽", max_digits=12, decimal_places=2, default=0,
     )
-    comment = models.TextField("Комментарий", blank=True)
-
+    work_days = models.PositiveIntegerField("Рабочих дней", default=0)
+    set_by = models.ForeignKey(
+        CustomUser, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="plans_set", verbose_name="Кто назначил"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -485,109 +469,88 @@ class CuratorMonthlyPlan(models.Model):
         ordering = ["-year", "-month"]
 
     def __str__(self):
-        return f"{self.curator} · {self.month:02d}.{self.year} · план {self.plan_amount} ₽"
+        return f"{self.curator} · {self.month:02d}.{self.year} · план {self.plan_amount}"
 
-    # ------------------------------------------------------------
-    # ФАКТ (К1): сумма согласованных планов куратора за этот месяц
-    # ------------------------------------------------------------
+    # ---------- ФАКТ (К1) ----------
     @property
     def fact_amount(self):
-        from django.db.models import Sum
-        plan_ids = (
-            CuratorCase.objects.filter(
-                curator=self.curator,
-                plan__agreement_date__year=self.year,
-                plan__agreement_date__month=self.month,
-            )
-            .exclude(status=CuratorCase.Status.LOST)
-            .values_list("plan_id", flat=True)
-            .distinct()
-        )
-        total = TreatmentPlan.objects.filter(id__in=plan_ids).aggregate(
-            s=Sum("agreed_sum")
-        )["s"]
-        return total or Decimal("0")
+        """К1 = сумма согласованных планов куратора за этот месяц (ТЗ п.11)."""
+        return compute_k1(self.curator, self.year, self.month)
 
     @property
     def completion_percent(self):
-        """Процент выполнения: факт / план × 100%"""
         if not self.plan_amount:
-            return Decimal("0")
+            return 0
         return round(self.fact_amount / self.plan_amount * 100, 1)
 
     @property
     def remaining(self):
-        """Остаток до плана"""
-        return max(self.plan_amount - self.fact_amount, Decimal("0"))
+        return self.plan_amount - self.fact_amount
 
+    # ---------- ТЕМП И ПРОГНОЗ (ТЗ п.13) ----------
     @property
-    def days_in_month(self):
-        return calendar.monthrange(self.year, self.month)[1]
-
-    @property
-    def is_current_month(self):
-        today = date.today()
-        return today.year == self.year and today.month == self.month
+    def is_current(self):
+        today = timezone.now().date()
+        return self.year == today.year and self.month == today.month
 
     @property
     def pace_percent(self):
-        """Темп относительно текущей даты месяца.
-        100% = идём ровно по графику."""
-        if not self.plan_amount:
-            return Decimal("0")
-        today = date.today()
-        if self.is_current_month:
-            elapsed_days = today.day
-        elif date(self.year, self.month, 1) < today:
-            elapsed_days = self.days_in_month  # месяц уже прошёл
-        else:
-            return Decimal("0")  # месяц ещё не начался
-        expected = self.plan_amount * elapsed_days / self.days_in_month
-        if not expected:
-            return Decimal("0")
-        return round(self.fact_amount / expected * 100, 1)
+        """Темп: факт к тому, что должно было быть к сегодняшнему дню."""
+        if not self.is_current or not self.plan_amount:
+            return None
+        today = timezone.now().date()
+        days_in_month = calendar.monthrange(self.year, self.month)[1]
+        expected_by_now = self.plan_amount * (today.day / days_in_month)
+        if not expected_by_now:
+            return None
+        return round(self.fact_amount / expected_by_now * 100, 1)
 
     @property
     def forecast(self):
-        """Линейный прогноз выполнения на конец месяца"""
-        today = date.today()
-        if not self.is_current_month or today.day == 0:
-            return self.fact_amount
-        return round(self.fact_amount / today.day * self.days_in_month, 2)
+        """Прогноз выполнения к концу месяца по текущему темпу."""
+        if not self.is_current:
+            return None
+        today = timezone.now().date()
+        if today.day == 0 or not self.fact_amount:
+            return None
+        days_in_month = calendar.monthrange(self.year, self.month)[1]
+        return round(self.fact_amount / today.day * days_in_month, 2)
 
-    # ------------------------------------------------------------
-    # БОНУСЫ (заглушки пороговой модели — заменить формулами из
-    # Google-файла заказчика, когда получим)
-    # ------------------------------------------------------------
+    # ---------- БОНУСЫ (ТЗ п.14) ----------
+    @cached_property
+    def kpl_for_calc(self):
+        """Итого КПЛ для расчёта = К1 + корректировки (возвраты)."""
+        return (self.fact_amount or 0) + (self.adjustments or 0)
+
+    @cached_property
+    def bonuses_raw(self):
+        return calculate_bonuses(self)
+
     @property
     def bonus_1(self):
-        return self.BONUS_1_AMOUNT if self.completion_percent >= self.BONUS_1_THRESHOLD else Decimal("0")
+        return rub(self.bonuses_raw[0])
 
     @property
     def bonus_2(self):
-        return self.BONUS_2_AMOUNT if self.completion_percent >= self.BONUS_2_THRESHOLD else Decimal("0")
+        return rub(self.bonuses_raw[1])
 
     @property
     def bonus_3(self):
-        return self.BONUS_3_AMOUNT if self.completion_percent >= self.BONUS_3_THRESHOLD else Decimal("0")
+        return rub(self.bonuses_raw[2])
 
     @property
     def total_bonus(self):
-        return self.bonus_1 + self.bonus_2 + self.bonus_3
+        # как в файле: итог из НЕокруглённых бонусов, потом округление
+        return rub(sum(self.bonuses_raw))
+
+    @property
+    def daily_component(self):
+        """Компонент выплаты за рабочие дни."""
+        return (self.work_days or 0) * DAILY_RATE
 
     @property
     def total_payout(self):
-        """Итог к выплате = бонусы + корректировки.
-        ⚠️ Допущение — уточнить у заказчика формулу из Google-файла."""
-        return self.total_bonus + self.adjustments
-
-    @property
-    def period_label(self):
-        months = [
-            "", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-            "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-        ]
-        return f"{months[self.month]} {self.year}"
+        return self.total_bonus + self.daily_component
 
 
 from datetime import datetime, timedelta

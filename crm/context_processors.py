@@ -58,8 +58,10 @@ def sidebar_context(request):
     ).first()
 
     #!! Это «ленивая» автоматизация без Celer
-    for case in CuratorCase.objects.filter(curator=request.user, status__in=[...активные...]):
-        ensure_payment_tasks(case)
+    for c in CuratorCase.objects.filter(curator=request.user).exclude(
+        status__in=[CuratorCase.Status.COMPLETED, CuratorCase.Status.LOST]
+    ):
+        ensure_payment_tasks(c)
     ##
 
     return {

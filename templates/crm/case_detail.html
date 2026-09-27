@@ -566,7 +566,7 @@
 
     <!-- РЕДАКТИРОВАТЬ ДОГОВОР -->
     <div x-show="modal === 'edit_contract'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <form method="post" :action="'{% url 'crm:contract_update' %}' + editContract.id + '/update/'"
+        <form method="post" :action="'{% url 'crm:contract_update' 0 %}'.replace('/0/', '/' + editContract.id + '/')"
               class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
             {% csrf_token %}
             <h3 class="text-lg font-bold text-sky-900 mb-4">Редактировать договор</h3>

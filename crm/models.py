@@ -3,8 +3,8 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.utils.functional import cached_property
-from .motivation import calculate_bonuses, rub, DAILY_RATE
-from .views import compute_k1
+from .motivation import calculate_bonuses, rub, DAILY_RATE, compute_k1
+
 
 # ============================================================
 # НАПРАВЛЕНИЯ ЛЕЧЕНИЯ (единый справочник)
@@ -453,6 +453,7 @@ from datetime import date
 from decimal import Decimal
 
 
+
 class CuratorMonthlyPlan(models.Model):
     """Индивидуальный месячный план куратора. Задаётся управляющей (ТЗ п.13)."""
 
@@ -490,6 +491,7 @@ class CuratorMonthlyPlan(models.Model):
     @property
     def fact_amount(self):
         """К1 = сумма согласованных планов куратора за этот месяц (ТЗ п.11)."""
+        from .views import compute_k1
         return compute_k1(self.curator, self.year, self.month)
 
     @property

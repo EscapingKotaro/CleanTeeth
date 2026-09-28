@@ -108,7 +108,7 @@ def dashboard(request):
     period_plans = my_plans.filter(
         agreement_date__range=(start_date, end_date),
     )
-    presented_count_period = my_plans.filter(
+    presented_count = my_plans.filter(
         presentation_date__range=(start_date, end_date),
     ).count()
     agreed_count = period_plans.count()

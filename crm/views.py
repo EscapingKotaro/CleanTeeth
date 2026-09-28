@@ -15,7 +15,7 @@ from django.db.models import Q
 from .models import Doctor, Direction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.db.models import F
-
+from decimal import Decimal
 from .audit import log_action
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
@@ -123,9 +123,9 @@ def dashboard(request):
     # 3. ДЕНЬГИ за период (по согласованным планам)
     # ============================================================
     money = period_plans.aggregate(
-        sum_presentations=Coalesce(Sum("presentation_sum"), 0),
-        sum_agreed=Coalesce(Sum("agreed_sum"), 0),
-        avg_agreed=Coalesce(Avg("agreed_sum"), 0),
+        sum_presentations=Coalesce(Sum("presentation_sum"), Decimal("0")),
+        sum_agreed=Coalesce(Sum("agreed_sum"), Decimal("0")),
+        avg_agreed=Coalesce(Avg("agreed_sum"), Decimal("0")),
     )
 
     # Суммы авансов и оплат (из связанных payments за период)
@@ -134,8 +134,8 @@ def dashboard(request):
         payments__payment_date__range=(start_date, end_date),
     ).distinct()
     payments_agg = period_payments.aggregate(
-        sum_advances=Coalesce(Sum("payments__amount", filter=Q(payments__is_advance=True, payments__payment_date__range=(start_date, end_date))), 0),
-        sum_paid=Coalesce(Sum("payments__amount", filter=Q(payments__payment_date__range=(start_date, end_date))), 0),
+        sum_advances=Coalesce(Sum("payments__amount", filter=Q(payments__is_advance=True, payments__payment_date__range=(start_date, end_date))), Decimal("0")),
+        sum_paid=Coalesce(Sum("payments__amount", filter=Q(payments__payment_date__range=(start_date, end_date))), Decimal("0")),
     )
 
     # Остаток = согласовано - оплачено

@@ -3,7 +3,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.utils.functional import cached_property
-from .motivation import calculate_bonuses, rub, DAILY_RATE, compute_k1
+from .motivation import calculate_bonuses, rub, DAILY_RATE
 
 
 # ============================================================

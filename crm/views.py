@@ -54,29 +54,182 @@ def add_months(d, months):
     day = min(d.day, calendar.monthrange(year, month)[1])
     return date_type(year, month, day)
 
+from django.db.models import Sum, Count, Avg, Q, F, Case, When, DecimalField
+from django.db.models.functions import Coalesce
+from datetime import date, timedelta
+import calendar
+
+
 @login_required
 def dashboard(request):
-    """Дашборд куратора (с сайдбарами)"""
-    # Получаем задачи куратора
-    tasks = []  # Пока заглушка, потом подтянем из Task
+    """Личный дашборд куратора (ТЗ п.13.1)."""
+    today = date.today()
 
-    # Получаем кейсы куратора
-    cases = CuratorCase.objects.filter(
-        curator=request.user,
+    # -------- Период фильтрации --------
+    period = request.GET.get("period", "month")
+    if period == "today":
+        start_date = end_date = today
+    elif period == "week":
+        start_date = today - timedelta(days=today.weekday())
+        end_date = start_date + timedelta(days=6)
+    elif period == "quarter":
+        q = (today.month - 1) // 3
+        start_month = q * 3 + 1
+        start_date = date(today.year, start_month, 1)
+        end_date = date(today.year, start_month + 2, calendar.monthrange(today.year, start_month + 2)[1])
+    elif period == "custom":
+        start_date = parse_date(request.GET.get("from")) or date(today.year, today.month, 1)
+        end_date = parse_date(request.GET.get("to")) or today
+    else:  # month
+        start_date = date(today.year, today.month, 1)
+        end_date = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+
+    # -------- Базовые queryset'ы по куратору --------
+    my_cases = CuratorCase.objects.filter(curator=request.user)
+    my_plans = TreatmentPlan.objects.filter(cases__curator=request.user).distinct()
+    my_tasks = Task.objects.filter(assignee=request.user)
+
+    # ============================================================
+    # 1. ВОРОНКА: количество кейсов по статусам за период
+    # ============================================================
+    funnel_stats = {
+        "transferred": my_cases.filter(status=CuratorCase.Status.TRANSFERRED, created_at__date__range=(start_date, end_date)).count(),
+        "presented": my_cases.filter(status=CuratorCase.Status.PRESENTED, created_at__date__range=(start_date, end_date)).count(),
+        "in_decision": my_cases.filter(status=CuratorCase.Status.IN_DECISION, created_at__date__range=(start_date, end_date)).count(),
+        "agreed": my_cases.filter(status=CuratorCase.Status.AGREED, created_at__date__range=(start_date, end_date)).count(),
+        "in_progress": my_cases.filter(status=CuratorCase.Status.IN_PROGRESS, created_at__date__range=(start_date, end_date)).count(),
+        "completed": my_cases.filter(status=CuratorCase.Status.COMPLETED, created_at__date__range=(start_date, end_date)).count(),
+        "lost": my_cases.filter(status=CuratorCase.Status.LOST, created_at__date__range=(start_date, end_date)).count(),
+    }
+
+    # ============================================================
+    # 2. КОНВЕРСИИ за период
+    # ============================================================
+    period_plans = my_plans.filter(
+        agreement_date__range=(start_date, end_date),
+    )
+    presented_count_period = my_plans.filter(
+        presentation_date__range=(start_date, end_date),
+    ).count()
+    agreed_count = period_plans.count()
+    started_count = period_plans.filter(start_date__isnull=False).count()
+    completed_count = period_plans.filter(end_date__isnull=False).count()
+
+    conversion_pres_to_agreed = (agreed_count / presented_count * 100) if presented_count else 0
+    conversion_agreed_to_start = (started_count / agreed_count * 100) if agreed_count else 0
+    conversion_start_to_complete = (completed_count / started_count * 100) if started_count else 0
+
+    # ============================================================
+    # 3. ДЕНЬГИ за период (по согласованным планам)
+    # ============================================================
+    money = period_plans.aggregate(
+        sum_presentations=Coalesce(Sum("presentation_sum"), 0),
+        sum_agreed=Coalesce(Sum("agreed_sum"), 0),
+        avg_agreed=Coalesce(Avg("agreed_sum"), 0),
+    )
+
+    # Суммы авансов и оплат (из связанных payments за период)
+    period_payments = my_plans.filter(
+        cases__curator=request.user,
+        payments__payment_date__range=(start_date, end_date),
+    ).distinct()
+    payments_agg = period_payments.aggregate(
+        sum_advances=Coalesce(Sum("payments__amount", filter=Q(payments__is_advance=True, payments__payment_date__range=(start_date, end_date))), 0),
+        sum_paid=Coalesce(Sum("payments__amount", filter=Q(payments__payment_date__range=(start_date, end_date))), 0),
+    )
+
+    # Остаток = согласовано - оплачено
+    remaining = money["sum_agreed"] - payments_agg["sum_paid"]
+
+    money_stats = {
+        "sum_presentations": money["sum_presentations"],
+        "sum_agreed": money["sum_agreed"],
+        "sum_advances": payments_agg["sum_advances"],
+        "sum_paid": payments_agg["sum_paid"],
+        "remaining": remaining,
+        "avg_agreed": money["avg_agreed"],
+    }
+
+    # ============================================================
+    # 4. АВАНСЫ за период
+    # ============================================================
+    plans_with_advance = period_plans.filter(
+        payments__is_advance=True,
+        payments__payment_date__range=(start_date, end_date),
+    ).distinct()
+    advance_count = plans_with_advance.count()
+    advance_sum = payments_agg["sum_advances"]
+    advance_share = (advance_count / agreed_count * 100) if agreed_count else 0
+    advance_percent = (advance_sum / money["sum_agreed"] * 100) if money["sum_agreed"] else 0
+
+    advance_stats = {
+        "count": advance_count,
+        "sum": advance_sum,
+        "share": round(advance_share, 1),
+        "percent": round(advance_percent, 1),
+    }
+
+    # ============================================================
+    # 5. ОПЕРАЦИОННАЯ РАБОТА (всегда на текущий день, без фильтра по периоду)
+    # ============================================================
+    tasks_today = my_tasks.filter(
+        status=Task.TaskStatus.PENDING,
+        due_date__date=today,
+    ).count()
+    tasks_overdue = my_tasks.filter(
+        status=Task.TaskStatus.PENDING,
+        due_date__date__lt=today,
+    ).count()
+    tasks_soon = my_tasks.filter(
+        status=Task.TaskStatus.PENDING,
+        due_date__date__range=(today + timedelta(days=1), today + timedelta(days=3)),
+    ).count()
+    cases_without_next = my_cases.filter(
         status__in=[
             CuratorCase.Status.TRANSFERRED,
             CuratorCase.Status.PRESENTED,
             CuratorCase.Status.IN_DECISION,
             CuratorCase.Status.AGREED,
             CuratorCase.Status.IN_PROGRESS,
-        ]
-    ).select_related("patient", "plan")[:10]
+        ],
+    ).annotate(
+        future_tasks=Count("tasks", filter=Q(tasks__status=Task.TaskStatus.PENDING, tasks__due_date__date__gte=today)),
+    ).filter(future_tasks=0).count()
+
+    ops_stats = {
+        "today": tasks_today,
+        "overdue": tasks_overdue,
+        "soon": tasks_soon,
+        "no_next_action": cases_without_next,
+    }
+
+    # ============================================================
+    # 6. МОТИВАЦИЯ (текущий месяц)
+    # ============================================================
+    monthly_plan = CuratorMonthlyPlan.objects.filter(
+        curator=request.user, year=today.year, month=today.month,
+    ).first()
 
     return render(request, "crm/dashboard.html", {
         "title": "Дашборд",
-        "tasks": tasks,
-        "cases": cases,
-        "use_sidebar": True,  # ← флаг для шаблона
+        "use_sidebar": True,
+        "period": period,
+        "start_date": start_date,
+        "end_date": end_date,
+        "funnel": funnel_stats,
+        "conversions": {
+            "pres_to_agreed": round(conversion_pres_to_agreed, 1),
+            "agreed_to_start": round(conversion_agreed_to_start, 1),
+            "start_to_complete": round(conversion_start_to_complete, 1),
+            "presented_count": presented_count,
+            "agreed_count": agreed_count,
+            "started_count": started_count,
+            "completed_count": completed_count,
+        },
+        "money": money_stats,
+        "advance": advance_stats,
+        "ops": ops_stats,
+        "monthly_plan": monthly_plan,
     })
 
 

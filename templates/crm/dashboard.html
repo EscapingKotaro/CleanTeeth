@@ -2,90 +2,229 @@
 
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
-{% block sidebar_left %}
-<div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4 sticky top-24">
-    <h3 class="text-lg font-bold text-sky-900 mb-4">План дня</h3>
-    <div class="space-y-2">
-        <div class="p-3 bg-sky-50 rounded-lg">
-            <p class="text-sm font-medium text-sky-900">Позвонить Иванову И.И.</p>
-            <p class="text-xs text-sky-600">10:00 · Напомнить о визите</p>
-        </div>
-        <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-            <p class="text-sm font-medium text-yellow-900">Получить аванс от Петрова П.П.</p>
-            <p class="text-xs text-yellow-700">14:00 · Просрочено</p>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
 {% block content %}
 <div class="space-y-6">
 
-    <!-- Приветствие -->
+    <!-- Заголовок + селектор периода -->
     <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
-        <h1 class="text-2xl font-bold text-sky-900 mb-2">
-            Добро пожаловать, {{ user.get_full_name|default:user.username }}!
-        </h1>
-        <p class="text-sky-600">Вот что происходит с вашими кейсами сегодня</p>
-    </div>
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-sky-900">{{ title }}</h1>
+                <p class="text-sm text-sky-600 mt-1">
+                    {{ request.user.get_full_name|default:request.user.username }} ·
+                    Период: {{ start_date|date:"d.m.Y" }} — {{ end_date|date:"d.m.Y" }}
+                </p>
+            </div>
 
-    <!-- Активные кейсы -->
-    <div class="bg-white rounded-xl shadow-sm border border-sky-100">
-        <div class="p-6 border-b border-sky-100">
-            <div class="flex justify-between items-center">
-                <h2 class="text-lg font-bold text-sky-900">Ваши активные кейсы</h2>
-                <a href="{% url 'crm:cases_list' %}" class="text-sm text-sky-600 hover:text-sky-900">
-                    Все кейсы →
+            <form method="get" class="flex flex-wrap gap-2">
+                <a href="?period=today" class="px-3 py-1.5 rounded-lg text-sm font-medium border
+                    {% if period == 'today' %}bg-sky-600 text-white border-sky-600{% else %}bg-white text-sky-700 border-sky-200 hover:bg-sky-50{% endif %}">
+                    Сегодня
                 </a>
-            </div>
-        </div>
-
-        <div class="divide-y divide-sky-100">
-            {% for case in cases %}
-            <a href="{% url 'crm:case_detail' case.id %}"
-               class="block p-4 hover:bg-sky-50 transition">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="font-medium text-sky-900">
-                            {{ case.patient.last_name }} {{ case.patient.first_name }}
-                        </p>
-                        <p class="text-sm text-sky-600">{{ case.get_status_display }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="font-semibold text-sky-900">{{ case.plan.agreed_sum }} ₽</p>
-                    </div>
-                </div>
-            </a>
-            {% empty %}
-            <div class="p-8 text-center text-sky-600">
-                Нет активных кейсов
-            </div>
-            {% endfor %}
+                <a href="?period=week" class="px-3 py-1.5 rounded-lg text-sm font-medium border
+                    {% if period == 'week' %}bg-sky-600 text-white border-sky-600{% else %}bg-white text-sky-700 border-sky-200 hover:bg-sky-50{% endif %}">
+                    Неделя
+                </a>
+                <a href="?period=month" class="px-3 py-1.5 rounded-lg text-sm font-medium border
+                    {% if period == 'month' %}bg-sky-600 text-white border-sky-600{% else %}bg-white text-sky-700 border-sky-200 hover:bg-sky-50{% endif %}">
+                    Месяц
+                </a>
+                <a href="?period=quarter" class="px-3 py-1.5 rounded-lg text-sm font-medium border
+                    {% if period == 'quarter' %}bg-sky-600 text-white border-sky-600{% else %}bg-white text-sky-700 border-sky-200 hover:bg-sky-50{% endif %}">
+                    Квартал
+                </a>
+            </form>
         </div>
     </div>
 
-</div>
-{% endblock %}
+    <!-- ==================== 1. ВОРОНКА ==================== -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <h2 class="text-lg font-bold text-sky-900 mb-4">Воронка за период</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div class="bg-sky-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-sky-600 mb-1">Передано</p>
+                <p class="text-2xl font-bold text-sky-900">{{ funnel.transferred }}</p>
+            </div>
+            <div class="bg-blue-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-blue-600 mb-1">Презентовано</p>
+                <p class="text-2xl font-bold text-blue-900">{{ funnel.presented }}</p>
+            </div>
+            <div class="bg-yellow-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-yellow-700 mb-1">В решении</p>
+                <p class="text-2xl font-bold text-yellow-800">{{ funnel.in_decision }}</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-green-600 mb-1">Согласовано</p>
+                <p class="text-2xl font-bold text-green-800">{{ funnel.agreed }}</p>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-purple-600 mb-1">В лечении</p>
+                <p class="text-2xl font-bold text-purple-800">{{ funnel.in_progress }}</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-gray-600 mb-1">Завершено</p>
+                <p class="text-2xl font-bold text-gray-800">{{ funnel.completed }}</p>
+            </div>
+            <div class="bg-red-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-red-600 mb-1">Отказ</p>
+                <p class="text-2xl font-bold text-red-800">{{ funnel.lost }}</p>
+            </div>
+        </div>
+    </div>
 
-{% block sidebar_right %}
-<div class="bg-white rounded-xl shadow-sm border border-sky-100 p-4 sticky top-24">
-    <h3 class="text-lg font-bold text-sky-900 mb-4">Мотивация</h3>
-    <div class="space-y-3">
-        <div>
-            <p class="text-xs text-sky-600 mb-1">План на месяц</p>
-            <p class="text-lg font-bold text-sky-900">500 000 ₽</p>
+    <!-- ==================== 2. КОНВЕРСИИ ==================== -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <h2 class="text-lg font-bold text-sky-900 mb-4">Конверсии</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-sky-50 rounded-lg p-4">
+                <p class="text-xs text-sky-600 mb-1">Презентация → Согласование</p>
+                <p class="text-3xl font-bold text-sky-900">{{ conversions.pres_to_agreed }}%</p>
+                <p class="text-xs text-sky-500 mt-2">{{ conversions.agreed_count }} / {{ conversions.presented_count }}</p>
+            </div>
+            <div class="bg-sky-50 rounded-lg p-4">
+                <p class="text-xs text-sky-600 mb-1">Согласование → Старт лечения</p>
+                <p class="text-3xl font-bold text-sky-900">{{ conversions.agreed_to_start }}%</p>
+                <p class="text-xs text-sky-500 mt-2">{{ conversions.started_count }} / {{ conversions.agreed_count }}</p>
+            </div>
+            <div class="bg-sky-50 rounded-lg p-4">
+                <p class="text-xs text-sky-600 mb-1">Старт → Завершение</p>
+                <p class="text-3xl font-bold text-sky-900">{{ conversions.start_to_complete }}%</p>
+                <p class="text-xs text-sky-500 mt-2">{{ conversions.completed_count }} / {{ conversions.started_count }}</p>
+            </div>
         </div>
-        <div>
-            <p class="text-xs text-sky-600 mb-1">Факт</p>
-            <p class="text-lg font-bold text-green-600">320 000 ₽</p>
+    </div>
+
+    <!-- ==================== 3. ДЕНЬГИ ==================== -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <h2 class="text-lg font-bold text-sky-900 mb-4">Деньги</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div class="bg-sky-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-sky-600 mb-1">Презентации</p>
+                <p class="text-lg font-bold text-sky-900">{{ money.sum_presentations|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-green-600 mb-1">Согласовано</p>
+                <p class="text-lg font-bold text-green-900">{{ money.sum_agreed|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-blue-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-blue-600 mb-1">Авансы</p>
+                <p class="text-lg font-bold text-blue-900">{{ money.sum_advances|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-indigo-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-indigo-600 mb-1">Оплачено</p>
+                <p class="text-lg font-bold text-indigo-900">{{ money.sum_paid|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-yellow-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-yellow-700 mb-1">Остаток</p>
+                <p class="text-lg font-bold text-yellow-800">{{ money.remaining|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-gray-600 mb-1">Средний чек</p>
+                <p class="text-lg font-bold text-gray-900">{{ money.avg_agreed|floatformat:0 }} ₽</p>
+            </div>
         </div>
-        <div>
-            <p class="text-xs text-sky-600 mb-1">Выполнение</p>
+    </div>
+
+    <!-- ==================== 4. АВАНСЫ ==================== -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <h2 class="text-lg font-bold text-sky-900 mb-4">Авансы (ТЗ п.11)</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-blue-50 rounded-lg p-4 text-center">
+                <p class="text-xs text-blue-600 mb-1">Пациентов с авансом</p>
+                <p class="text-3xl font-bold text-blue-900">{{ advance.count }}</p>
+            </div>
+            <div class="bg-blue-50 rounded-lg p-4 text-center">
+                <p class="text-xs text-blue-600 mb-1">Сумма авансов</p>
+                <p class="text-3xl font-bold text-blue-900">{{ advance.sum|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-sky-50 rounded-lg p-4 text-center">
+                <p class="text-xs text-sky-600 mb-1">Доля пациентов</p>
+                <p class="text-3xl font-bold text-sky-900">{{ advance.share }}%</p>
+            </div>
+            <div class="bg-sky-50 rounded-lg p-4 text-center">
+                <p class="text-xs text-sky-600 mb-1">% от согласованных</p>
+                <p class="text-3xl font-bold text-sky-900">{{ advance.percent }}%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 5. ОПЕРАЦИОННАЯ РАБОТА ==================== -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <h2 class="text-lg font-bold text-sky-900 mb-4">Операционная работа</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-sky-50 rounded-lg p-4 text-center">
+                <p class="text-xs text-sky-600 mb-1">Задач сегодня</p>
+                <p class="text-3xl font-bold text-sky-900">{{ ops.today }}</p>
+                <a href="{% url 'crm:tasks_list' %}" class="text-xs text-sky-600 hover:text-sky-800 mt-2 inline-block">Открыть →</a>
+            </div>
+            <div class="bg-red-50 rounded-lg p-4 text-center">
+                <p class="text-xs text-red-600 mb-1">Просрочено</p>
+                <p class="text-3xl font-bold text-red-800">{{ ops.overdue }}</p>
+            </div>
+            <div class="bg-yellow-50 rounded-lg p-4 text-center">
+                <p class="text-xs text-yellow-700 mb-1">Ближайшие 3 дня</p>
+                <p class="text-3xl font-bold text-yellow-800">{{ ops.soon }}</p>
+            </div>
+            <div class="{% if ops.no_next_action > 0 %}bg-red-50{% else %}bg-green-50{% endif %} rounded-lg p-4 text-center">
+                <p class="text-xs {% if ops.no_next_action > 0 %}text-red-600{% else %}text-green-600{% endif %} mb-1">Без след. действия</p>
+                <p class="text-3xl font-bold {% if ops.no_next_action > 0 %}text-red-800{% else %}text-green-800{% endif %}">{{ ops.no_next_action }}</p>
+                {% if ops.no_next_action > 0 %}
+                <a href="{% url 'crm:cases_list' %}" class="text-xs text-red-600 hover:text-red-800 mt-2 inline-block">Исправить →</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 6. МОТИВАЦИЯ (текущий месяц) ==================== -->
+    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-bold text-sky-900">Мотивация · {% now "F Y" %}</h2>
+            <a href="{% url 'crm:motivation' %}" class="text-sm text-sky-600 hover:text-sky-800 font-medium">Подробнее →</a>
+        </div>
+
+        {% if monthly_plan %}
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div class="bg-sky-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-sky-600 mb-1">План</p>
+                <p class="text-lg font-bold text-sky-900">{{ monthly_plan.plan_amount|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-green-600 mb-1">Факт (К1)</p>
+                <p class="text-lg font-bold text-green-900">{{ monthly_plan.fact_amount|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-sky-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-sky-600 mb-1">Выполнение</p>
+                <p class="text-lg font-bold text-sky-900">{{ monthly_plan.completion_percent }}%</p>
+            </div>
+            <div class="bg-yellow-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-yellow-700 mb-1">Остаток</p>
+                <p class="text-lg font-bold text-yellow-800">{{ monthly_plan.remaining|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-sky-50 rounded-lg p-3 text-center">
+                <p class="text-xs text-sky-600 mb-1">Бонусы</p>
+                <p class="text-lg font-bold text-sky-900">{{ monthly_plan.total_bonus|floatformat:0 }} ₽</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-3 text-center border border-green-200">
+                <p class="text-xs text-green-700 mb-1">К выплате</p>
+                <p class="text-lg font-bold text-green-900">{{ monthly_plan.total_payout|floatformat:0 }} ₽</p>
+            </div>
+        </div>
+
+        <!-- Прогресс -->
+        <div class="mt-4">
+            <div class="flex justify-between text-xs text-sky-600 mb-1">
+                <span>Прогресс</span>
+                <span>{{ monthly_plan.completion_percent }}%</span>
+            </div>
             <div class="w-full bg-sky-100 rounded-full h-2">
-                <div class="bg-green-500 h-2 rounded-full" style="width: 64%"></div>
+                <div class="bg-green-500 h-2 rounded-full transition-all"
+                     style="width: {% if monthly_plan.completion_percent > 100 %}100{% else %}{{ monthly_plan.completion_percent|floatformat:0 }}{% endif %}%"></div>
             </div>
-            <p class="text-sm font-medium text-sky-900 mt-1">64%</p>
         </div>
+        {% else %}
+        <p class="text-sm text-sky-500">План на текущий месяц не назначен. Обратитесь к управляющей.</p>
+        {% endif %}
     </div>
+
 </div>
 {% endblock %}

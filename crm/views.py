@@ -342,6 +342,9 @@ def case_detail(request, case_id):
             "is_optional": s == CuratorCase.Status.IN_DECISION,
         })
 
+    active_contract = case.patient.contracts.order_by("-date", "-id").first()
+    contract_history = case.patient.contracts.order_by("-date", "-id")[1:]
+
     return render(request, "crm/case_detail.html", {
         "title": f"Кейс #{case.id}",
         "case": case,
@@ -358,6 +361,8 @@ def case_detail(request, case_id):
         "use_sidebar": True,
         "transitions": transitions,
         "funnel_steps": funnel_steps,
+        "active_contract": active_contract,
+        "contract_history": contract_history,
     })
 
 

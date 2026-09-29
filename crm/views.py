@@ -792,9 +792,11 @@ def task_complete(request, task_id):
         task.result = request.POST.get("result", "").strip()
         task.completed_at = timezone.now()
         task.save(update_fields=["status", "result", "completed_at"])
-        messages.success(request, "Задача выполнена. Не забудьте создать следующий шаг.")
+        messages.success(request, "Задача выполнена.")
+
         # ПРАВИЛО ТЗ п.7: каждое завершённое действие порождает следующее
-        if case.is_active and not Task.objects.filter(
+        case = task.case
+        if case and case.is_active and not Task.objects.filter(
             case=case, status=Task.TaskStatus.PENDING, due_date__date__gte=timezone.now().date()
         ).exists():
             from datetime import timedelta
@@ -807,6 +809,15 @@ def task_complete(request, task_id):
                 priority=Task.Priority.MEDIUM,
             )
             messages.info(request, "Создана следующая задача для непрерывности кейса.")
+
+        log_action(
+            action=AuditLog.Action.UPDATE,
+            instance=task,
+            field_name="status",
+            new_value="DONE",
+            comment=f"Задача выполнена. Результат: {task.result or '—'}",
+        )
+
     return redirect("crm:case_detail", case_id=task.case_id)
 
 

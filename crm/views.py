@@ -794,21 +794,7 @@ def task_complete(request, task_id):
         task.save(update_fields=["status", "result", "completed_at"])
         messages.success(request, "Задача выполнена.")
 
-        # ПРАВИЛО ТЗ п.7: каждое завершённое действие порождает следующее
-        case = task.case
-        if case and case.is_active and not Task.objects.filter(
-            case=case, status=Task.TaskStatus.PENDING, due_date__date__gte=timezone.now().date()
-        ).exists():
-            from datetime import timedelta
-            Task.objects.create(
-                case=case,
-                task_type=Task.TaskType.CONTACT,
-                description="Следующий шаг после выполнения задачи",
-                due_date=timezone.now() + timedelta(days=1),
-                assignee=task.assignee or case.curator,
-                priority=Task.Priority.MEDIUM,
-            )
-            messages.info(request, "Создана следующая задача для непрерывности кейса.")
+     
 
         log_action(
             action=AuditLog.Action.UPDATE,

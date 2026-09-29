@@ -318,6 +318,8 @@ def case_detail(request, case_id):
     # Кнопки переходов (с развилкой после презентации)
     transitions = []
     for status in case.next_statuses:
+        if status == CuratorCase.Status.IN_PROGRESS and not case.plan.is_ready_for_work:
+            continue
         ui = TRANSITION_UI.get(status, {})
         transitions.append({
             "modal": ui.get("modal"),
@@ -791,6 +793,20 @@ def task_complete(request, task_id):
         task.completed_at = timezone.now()
         task.save(update_fields=["status", "result", "completed_at"])
         messages.success(request, "Задача выполнена. Не забудьте создать следующий шаг.")
+        # ПРАВИЛО ТЗ п.7: каждое завершённое действие порождает следующее
+        if case.is_active and not Task.objects.filter(
+            case=case, status=Task.TaskStatus.PENDING, due_date__date__gte=timezone.now().date()
+        ).exists():
+            from datetime import timedelta
+            Task.objects.create(
+                case=case,
+                task_type=Task.TaskType.CONTACT,
+                description="Следующий шаг после выполнения задачи",
+                due_date=timezone.now() + timedelta(days=1),
+                assignee=task.assignee or case.curator,
+                priority=Task.Priority.MEDIUM,
+            )
+            messages.info(request, "Создана следующая задача для непрерывности кейса.")
     return redirect("crm:case_detail", case_id=task.case_id)
 
 
@@ -1311,6 +1327,22 @@ def schedule_sign(request, plan_id):
         messages.success(request, "График подписан.")
     return redirect("crm:case_detail", case_id=case_id)
 
+@login_required
+def plan_sign(request, plan_id):
+    """Подписать план пациентом (отдельная кнопка, ТЗ п.5.3)."""
+    plan = get_object_or_404(TreatmentPlan, id=plan_id)
+    case_id = plan.cases.first().id if plan.cases.exists() else None
+
+    if request.method == "POST":
+        plan.is_signed_by_patient = True
+        plan.save(update_fields=["is_signed_by_patient"])
+        log_action(
+            action=AuditLog.Action.UPDATE, instance=plan,
+            field_name="is_signed_by_patient", new_value="Подписан",
+            comment="План подписан пациентом",
+        )
+        messages.success(request, "План отмечен как подписанный пациентом.")
+    return redirect("crm:case_detail", case_id=case_id)
 
 @login_required
 def payment_create(request, plan_id):

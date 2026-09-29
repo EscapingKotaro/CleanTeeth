@@ -163,30 +163,29 @@
     </header>
 
     <!-- ==================== ОСНОВНОЙ БЛОК ==================== -->
-    {% if use_sidebar %}
-    <!-- С сайдбарами -->
-    <div class="flex-1 max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="flex gap-6">
+{% if use_sidebar %}
+<!-- С сайдбарами -->
+<div class="flex-1 max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="grid grid-cols-1 xl:grid-cols-[320px_1fr_320px] gap-6">
 
-            <!-- Левый сайдбар (Задачи) -->
-            <aside class="hidden xl:block w-80 flex-shrink-0">
-                {% include "crm/partials/sidebar_tasks.html" %}
-            </aside>
+        <!-- Левый сайдбар (Задачи) -->
+        <aside class="hidden xl:block">
+            {% include "crm/partials/sidebar_tasks.html" %}
+        </aside>
 
-            <!-- Центральный контент -->
-            <main class="flex-1 min-w-0">
-                {% block content %}{% endblock %}
-            </main>
+        <!-- Центральный контент -->
+        <main class="min-w-0">
+            {% block content %}{% endblock %}
+        </main>
 
-            <!-- Правый сайдбар (Мотивация) -->
-            <!-- Правый сайдбар (Мотивация) -->
-<aside class="hidden xl:block w-80 flex-shrink-0">
-    {% include "crm/partials/sidebar_motivation.html" %}
-</aside>
+        <!-- Правый сайдбар (Мотивация) -->
+        <aside class="hidden xl:block">
+            {% include "crm/partials/sidebar_motivation.html" %}
+        </aside>
 
-        </div>
     </div>
-    {% else %}
+</div>
+{% else %}
     <!-- Без сайдбаров -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {% block content_full %}{% endblock %}

@@ -25,6 +25,7 @@ urlpatterns = [
     path("patient/<int:patient_id>/update/", views.patient_update, name="patient_update"),
     path("plan/<int:plan_id>/update/", views.plan_update, name="plan_update"),
     path("plan/create/", views.plan_create, name="plan_create"),
+    path("plans/<int:plan_id>/sign/", views.plan_sign, name="plan_sign"),
 
     path("cases/<int:case_id>/status/", views.case_change_status, name="case_change_status"),
     path("cases/<int:case_id>/task/create/", views.task_create, name="task_create"),

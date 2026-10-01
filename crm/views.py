@@ -1799,6 +1799,14 @@ def manager_report(request):
 
     # Деньги — по датам событий в периоде (как в рефе)
     plans_qs = TreatmentPlan.objects.filter(cases__in=cases_qs).distinct()
+
+   # Кейсы в отказе (на конец периода) не входят в согласованные и остаток
+    lost_exclusion = Q(cases__status=CuratorCase.Status.LOST) & (
+        Q(cases__lost_date__lte=end_date) | Q(cases__lost_date__isnull=True)
+    )
+
+    agreed = plans_qs.filter(agreement_date__range=(start_date, end_date)).exclude(lost_exclusion)
+
     agreed = plans_qs.filter(agreement_date__range=(start_date, end_date))
     sum_agreed = agreed.aggregate(s=Coalesce(Sum("agreed_sum"), Decimal("0")))["s"]
     sum_paid = Payment.objects.filter(
@@ -1836,7 +1844,7 @@ def manager_report(request):
         u_cases = CuratorCase.objects.filter(curator=u)
         u_plans = TreatmentPlan.objects.filter(cases__in=u_cases).distinct()
         u_pres = u_plans.filter(presentation_date__range=(start_date, end_date))
-        u_agr = u_plans.filter(agreement_date__range=(start_date, end_date))
+        u_agr = u_plans.filter(agreement_date__range=(start_date, end_date)).exclude(lost_exclusion)
 
         pres_count = u_pres.count()
         pres_sum = u_pres.aggregate(s=Coalesce(Sum("presentation_sum"), Decimal("0")))["s"]
@@ -1898,10 +1906,14 @@ def manager_report(request):
     detail_rows = []
     for c in detail_qs:
         paid = paid_by_plan.get(c.plan_id) or Decimal("0")
+        if c.status == CuratorCase.Status.LOST:
+            row_remainder = Decimal("0")  # с отказника ничего не ждём
+        else:
+            row_remainder = (c.plan.agreed_sum or Decimal("0")) - paid
         detail_rows.append({
             "case": c,
             "paid": paid,
-            "remainder": (c.plan.agreed_sum or Decimal("0")) - paid,
+            "remainder": row_remainder,
             "next_task": next_by_case.get(c.id),
         })
 

@@ -1756,24 +1756,20 @@ def manager_report(request):
     now = timezone.now()
 
     # -------- Фильтры --------
-    period = request.GET.get("period", "month")
-    if period == "custom":
-        start_date = parse_date(request.GET.get("from", "")) or today.replace(day=1)
-        end_date = parse_date(request.GET.get("to", "")) or today
-        if end_date < start_date:
-            start_date, end_date = end_date, start_date
-    else:
-        start_date = today.replace(day=1)
-        end_date = today
+
+    start_date = parse_date(request.GET.get("from", "")) or (today - timedelta(days=30))
+    end_date = parse_date(request.GET.get("to", "")) or today
+    if end_date < start_date:
+        start_date, end
 
     curator_id = request.GET.get("curator", "")
     status_filter = request.GET.get("status", "")
 
     curators = CustomUser.objects.filter(
-        role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
+        role=CustomUser.Role.CURATOR
     ).order_by("last_name", "first_name")
 
-    cases_qs = CuratorCase.objects.all()
+    cases_qs = CuratorCase.objects.filter(curator__role=CustomUser.Role.CURATOR)
     if curator_id:
         cases_qs = cases_qs.filter(curator_id=curator_id)
 
@@ -1911,7 +1907,6 @@ def manager_report(request):
 
     return render(request, "crm/manager_report.html", {
         "title": "Отчёт руководителя",
-        "period": period,
         "start_date": start_date,
         "end_date": end_date,
         "curators": curators,

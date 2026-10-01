@@ -1756,11 +1756,10 @@ def manager_report(request):
     now = timezone.now()
 
     # -------- Фильтры --------
-
     start_date = parse_date(request.GET.get("from", "")) or (today - timedelta(days=30))
     end_date = parse_date(request.GET.get("to", "")) or today
     if end_date < start_date:
-        start_date, end
+        start_date, end_date = end_date, start_date
 
     curator_id = request.GET.get("curator", "")
     status_filter = request.GET.get("status", "")
@@ -1780,11 +1779,9 @@ def manager_report(request):
     ]
 
     # -------- Сводка --------
-    # Коэффициенты воронки считаем по когорте: кейсы, созданные в периоде
     cohort = cases_qs.filter(created_at__date__range=(start_date, end_date))
     status_counts = {v: cohort.filter(status=v).count() for v, _ in CuratorCase.Status.choices}
 
-    # Активные сопровождения, просроченные и «без следующего действия» — на текущую дату
     active_now = cases_qs.filter(status__in=active_statuses).count()
     overdue_tasks = Task.objects.filter(
         case__in=cases_qs, status=Task.TaskStatus.PENDING, due_date__lt=now
@@ -1797,17 +1794,15 @@ def manager_report(request):
         .count()
     )
 
-    # Деньги — по датам событий в периоде (как в рефе)
+    # Деньги — по датам событий в периоде
     plans_qs = TreatmentPlan.objects.filter(cases__in=cases_qs).distinct()
 
-   # Кейсы в отказе (на конец периода) не входят в согласованные и остаток
-    lost_exclusion = Q(cases__status=CuratorCase.Status.LOST) & (
-        Q(cases__lost_date__lte=end_date) | Q(cases__lost_date__isnull=True)
-    )
+    # Кейсы в отказе (НЕЗАВИСИМО от даты отказа) не входят в согласованные и остаток
+    lost_exclusion = Q(cases__status=CuratorCase.Status.LOST)
 
+    # ОДНО присваивание, с исключением отказов
     agreed = plans_qs.filter(agreement_date__range=(start_date, end_date)).exclude(lost_exclusion)
 
-    agreed = plans_qs.filter(agreement_date__range=(start_date, end_date))
     sum_agreed = agreed.aggregate(s=Coalesce(Sum("agreed_sum"), Decimal("0")))["s"]
     sum_paid = Payment.objects.filter(
         plan__in=plans_qs, payment_date__range=(start_date, end_date)

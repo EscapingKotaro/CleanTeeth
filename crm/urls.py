@@ -61,4 +61,7 @@ urlpatterns = [
     path("schedule/<int:item_id>/update/", views.schedule_item_update, name="schedule_item_update"),
     path("schedule/<int:item_id>/delete/", views.schedule_item_delete, name="schedule_item_delete"),
     path("plans/<int:plan_id>/schedule/generate/", views.schedule_generate, name="schedule_generate"),
+
+
+    path("reports/manager/", views.manager_report, name="manager_report"),
 ]

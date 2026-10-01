@@ -41,10 +41,10 @@
                 <!-- Навигация -->
                 <nav class="hidden md:flex items-center space-x-1">
 
-                    {% if user.role == 'CURATOR' or user.role == 'SENIOR_CURATOR' %}
+                    {% if user.role == 'CURATOR' %}
                         <a href="{% url 'crm:cases_list' %}"
                            class="px-3 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'cases_list' %}bg-sky-100 text-sky-900{% else %}text-sky-700 hover:bg-sky-50{% endif %} transition">
-                            Кейсы
+                            Путь пациента
                         </a>
                         <a href="{% url 'crm:tasks_list' %}"
                            class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
@@ -68,21 +68,10 @@
                     {% endif %}
 
                     {% if user.role == 'MANAGER' or user.role == 'ADMIN' %}
-                        <a href="{% url 'crm:analytics' %}"
-                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
-                            Аналитика
-                        </a>
-                        <a href="{% url 'crm:document_checks' %}"
-                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
-                            Реестр проверок
-                        </a>
-                    {% endif %}
-
-                    {% if user.role == 'ADMIN' %}
-                        <a href="{% url 'crm:settings' %}"
-                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
-                            Настройки
-                        </a>
+    <a href="{% url 'crm:manager_report' %}"
+       class="px-3 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'manager_report' %}bg-sky-100 text-sky-900{% else %}text-sky-700 hover:bg-sky-50{% endif %} transition">
+        Отчёт руководителя
+    </a>
                     {% endif %}
 
                     <a href="{% url 'crm:patients_list' %}"

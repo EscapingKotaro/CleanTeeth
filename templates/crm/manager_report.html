@@ -44,15 +44,12 @@
                 Показать
             </button>
         </form>
-        <p class="text-xs text-sky-500 mt-3">
-            Период: {{ start_date|date:"d.m.Y" }} — {{ end_date|date:"d.m.Y" }} включительно. По умолчанию — последние 30 дней.
-        </p>
-        <p class="text-xs text-sky-500 mt-3">Период: {{ start_date|date:"d.m.Y" }} — {{ end_date|date:"d.m.Y" }} (включительно)</p>
+       
     </div>
 
     <!-- СТРОКА 1: разбивка по статусам -->
     <div>
-        <h2 class="text-sm font-bold text-sky-900 uppercase tracking-wide mb-2">Сопровождения по статусам</h2>
+       
         <div class="grid grid-cols-4 xl:grid-cols-8 gap-3">
             <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
                 <p class="text-xs text-sky-500">Активных</p>
@@ -91,7 +88,6 @@
 
     <!-- СТРОКА 2: финансы + операционка -->
     <div>
-        <h2 class="text-sm font-bold text-sky-900 uppercase tracking-wide mb-2">Финансы и операционка</h2>
         <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
                 <p class="text-xs text-sky-500">Сумма согласованных</p>
@@ -135,7 +131,7 @@
                         <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Аванс, шт</th>
                         <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Авансы, ₽</th>
                         <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Сразу</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Чек</th>
+                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Ср. чек</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-sky-100">

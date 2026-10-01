@@ -60,12 +60,6 @@
                         </a>
                     {% endif %}
 
-                    {% if user.role == 'SENIOR_CURATOR' or user.role == 'MANAGER' or user.role == 'ADMIN' %}
-                        <a href="{% url 'crm:team_control' %}"
-                           class="px-3 py-2 rounded-lg text-sm font-medium text-sky-700 hover:bg-sky-50 transition">
-                            Контроль отдела
-                        </a>
-                    {% endif %}
 
                     {% if user.role == 'MANAGER' or user.role == 'ADMIN' %}
     <a href="{% url 'crm:manager_report' %}"

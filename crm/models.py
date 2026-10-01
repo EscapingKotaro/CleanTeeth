@@ -4,7 +4,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.utils.functional import cached_property
 from .motivation import calculate_bonuses, rub, DAILY_RATE
-
+from decimal import Decimal
 
 # ============================================================
 # НАПРАВЛЕНИЯ ЛЕЧЕНИЯ (единый справочник)
@@ -445,6 +445,16 @@ class CuratorCase(models.Model):
     def next_statuses(self):
         """Список статусов, в которые можно перейти из текущего."""
         return self.NEXT_STATUSES.get(self.status, [])
+
+    @property
+    def remaining(self):
+        """
+        Дебиторка по кейсу: сколько ещё ждём денег.
+        По отказанным кейсам — 0: никто ничего не погасит.
+        """
+        if self.status == self.Status.LOST:
+            return Decimal("0")
+        return (self.plan.agreed_sum or Decimal("0")) - (self.plan.total_paid or Decimal("0"))
 
 
 

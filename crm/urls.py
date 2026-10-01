@@ -11,7 +11,8 @@ urlpatterns = [
     path("password-change/done/", views.CustomPasswordChangeDoneView.as_view(), name="password_change_done"),
 
     # CRM страницы
-    path("", views.dashboard, name="dashboard"),
+    path("", views.role_home, name="role_home"),
+    path("dashboard/", views.dashboard, name="dashboard"),
     path("cases/", views.cases_list, name="cases_list"),  # ← было patients_list
     path("cases/<int:case_id>/", views.case_detail, name="case_detail"),  # ← новое
     path("tasks/", views.tasks_list, name="tasks_list"),

@@ -137,7 +137,7 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 LOGIN_URL = "crm:login"
-LOGIN_REDIRECT_URL = "crm:dashboard"
+LOGIN_REDIRECT_URL = "crm:role_home"
 LOGOUT_REDIRECT_URL = "crm:login"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

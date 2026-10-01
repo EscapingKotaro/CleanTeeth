@@ -40,6 +40,19 @@ class CustomPasswordChangeDoneView(auth_views.PasswordChangeDoneView):
 
 
 
+ROLE_HOME = {
+    CustomUser.Role.CURATOR: "crm:dashboard",
+    CustomUser.Role.SENIOR_CURATOR: "crm:team_control",
+    CustomUser.Role.MANAGER: "crm:manager_report",
+    CustomUser.Role.ADMIN: "crm:users_list",
+}
+
+
+@login_required
+def role_home(request):
+    """Начальная страница в зависимости от роли."""
+    return redirect(ROLE_HOME.get(request.user.role, "crm:dashboard"))
+
 
 
 from django.db import IntegrityError

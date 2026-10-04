@@ -1,5 +1,13 @@
 /* Dento CRM — Frosted Glass Design System */
 
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/static/fonts/InterVariable.woff2') format('woff2');
+}
+
 :root, [data-theme="light"] {
   --dg-bg: #edf0f3;
   --dg-surface: rgba(255,255,255,.62);
@@ -17,6 +25,7 @@
                     linear-gradient(135deg, #edf0f3, #e4e9ee);
   --font-sans: Inter, 'Segoe UI', system-ui, sans-serif;
   color-scheme: light;
+  --dg-page: #f2f4f7;
 }
 
 [data-theme="dark"] {
@@ -35,18 +44,37 @@
   --dg-bg-gradient: radial-gradient(ellipse at 85% 12%, rgba(59,77,94,.35), transparent 50%), 
                     linear-gradient(135deg, #19222b, #151b22);
   color-scheme: dark;
+  --dg-page: #101317;
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: var(--font-sans);
+  padding: 1rem;
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color: var(--dg-text);
-  background: var(--dg-bg-gradient);
+  background: var(--dg-page);
   -webkit-font-smoothing: antialiased;
+}
+
+.dg-frame {
+  --dg-shell-max: 1200px;
+  max-width: var(--dg-shell-max);
+  margin: 0 auto;
+  min-height: calc(100vh - 2rem);
+  border: 1px solid rgba(255,255,255,.6);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--dg-bg-gradient);
+  box-shadow: 0 12px 35px rgba(31,44,60,.05);
+}
+
+[data-theme="dark"] .dg-frame {
+  border-color: rgba(225,235,249,.16);
+  box-shadow: 0 14px 38px rgba(0,0,0,.18);
 }
 
 /* Grid: sidebar 185px + main */
@@ -253,8 +281,12 @@ button, .btn {
   cursor: pointer;
 }
 
-button:hover, .btn:hover {
+button:not(.btn-primary):hover, .btn:not(.btn-primary):hover {
   background: var(--dg-soft);
+}
+
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--dg-main) 86%, var(--dg-text) 14%);
 }
 
 .btn-primary {
@@ -406,3 +438,28 @@ input:focus, select:focus, textarea:focus {
     padding: 16px;
   }
 }
+
+/* ===== План дня: расписание 9:00–18:00, шаг 30 мин ===== */
+.dp-schedule { display: grid; grid-template-columns: 54px minmax(0,1fr); margin-top: 20px; }
+.dp-hours { display: grid; grid-template-rows: repeat(18, 48px); font-size: 11px; color: var(--dg-muted); }
+.dp-hours span { padding-top: 4px; font-variant-numeric: tabular-nums; }
+.dp-grid { display: grid; grid-template-rows: repeat(18, minmax(48px, auto)); border-left: 1px solid var(--dg-line); border-radius: 7px; }
+.dp-slot { border-bottom: 1px solid var(--dg-line); padding: 2px 10px; display: flex; flex-direction: column; gap: 4px; }
+.dp-slot.dp-dragover { background: rgba(90,125,152,.08); }
+
+.dp-event {
+  display: grid; grid-template-columns: 52px minmax(0,1fr) auto;
+  align-items: center; gap: 10px; padding: 6px 12px;
+  background: var(--dg-solid); border: 1px solid var(--dg-line);
+  border-left: 3px solid #63869d; border-radius: 6px;
+  box-shadow: 0 3px 10px rgba(0,0,0,.035); cursor: grab;
+}
+.dp-event:active { cursor: grabbing; }
+.dp-event .dp-time { font-size: 12px; color: var(--dg-muted); font-variant-numeric: tabular-nums; }
+.dp-event .dp-action { font-size: 13px; font-weight: 500; margin: 0; }
+.dp-event .dp-desc { font-size: 11px; color: var(--dg-muted); margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dp-event .dp-patient { font-size: 11px; color: var(--dg-muted); text-align: right; }
+.dp-event.dp-overdue { border-left-color: var(--dg-warn); }
+.dp-event.dp-overdue .dp-time { color: var(--dg-warn); }
+.dp-event.dp-completed { border-left-color: var(--dg-green); opacity: .65; }
+.dp-event.dp-completed .dp-action { text-decoration: line-through; color: var(--dg-muted); }

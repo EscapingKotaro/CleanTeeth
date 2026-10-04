@@ -3,162 +3,174 @@
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div x-data="{ layout: 'rows', filter: 'all' }">
-    
-    <div class="dg-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+<div x-data="{ filter: 'all', dragId: null, dragDate: null, dragOver: null, modalTask: null }">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
         <div>
-            <div class="dg-tag">{{ today|date:"l, j F" }}</div>
             <h1>{{ title }}</h1>
-            <p class="dg-muted">Задачи на сегодня и ближайшие дни</p>
+            <p class="dg-muted">Каждый пациент — с понятным следующим шагом</p>
         </div>
-        <button class="btn-primary" onclick="window.location.href='{% url 'crm:cases_list' %}'">
-            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 4v16m8-8H4"/>
-            </svg>
-            Новая задача
-        </button>
     </div>
 
-    <!-- Toolbar -->
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
-        <div style="display:flex;gap:5px;background:var(--dg-soft);padding:4px;border-radius:10px;">
-            <button @click="filter = 'all'" :class="filter === 'all' ? 'btn-primary' : ''" :aria-pressed="filter === 'all'">Все</button>
-            <button @click="filter = 'open'" :class="filter === 'open' ? 'btn-primary' : ''" :aria-pressed="filter === 'open'">Не сделано</button>
-            <button @click="filter = 'done'" :class="filter === 'done' ? 'btn-primary' : ''" :aria-pressed="filter === 'done'">Сделано</button>
+    <div class="dg-panel">
+        <!-- Toolbar: только фильтры статусов -->
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="display:flex;gap:5px;background:var(--dg-soft);padding:4px;border-radius:8px;">
+                <button type="button" @click="filter = 'all'" :class="filter === 'all' ? 'btn-primary' : ''">Все</button>
+                <button type="button" @click="filter = 'open'" :class="filter === 'open' ? 'btn-primary' : ''">Не сделано</button>
+                <button type="button" @click="filter = 'done'" :class="filter === 'done' ? 'btn-primary' : ''">Сделано</button>
+            </div>
         </div>
-        
-        <div style="display:flex;gap:5px;background:var(--dg-soft);padding:4px;border-radius:10px;">
-            <button @click="layout = 'rows'" :class="layout === 'rows' ? 'btn-primary' : ''" :aria-pressed="layout === 'rows'">Строки</button>
-            <button @click="layout = 'cards'" :class="layout === 'cards' ? 'btn-primary' : ''" :aria-pressed="layout === 'cards'">Карточки</button>
-        </div>
-        
-        <p class="dg-muted" style="margin:auto 0;">
-            <span x-show="filter !== 'done'">{{ overdue.count }} просрочено · {{ today_tasks.count }} сегодня</span>
-            <span x-show="filter === 'done'">{{ done.count }} выполнено</span>
-        </p>
-    </div>
+        <p class="dg-muted">{{ not_done }} не сделано · {{ done_count }} сделано · блоки можно перетаскивать</p>
 
-    <!-- Просроченные -->
-    <div x-show="filter !== 'done'" class="dg-panel">
-        <div class="dg-panelhead">
-            <h2 style="color:var(--dg-warn);">Просроченные</h2>
-            <span class="dg-badge dg-warn">{{ overdue.count }}</span>
-        </div>
-        
-        {% if overdue %}
-        <div :class="layout === 'cards' ? 'dg-metrics' : ''">
-            {% for task in overdue %}
-            <div :class="layout === 'cards' ? 'dg-panel' : 'dg-row'" style="margin:0;">
-                <span class="dg-time" :class="layout === 'cards' ? 'dg-muted' : ''">{{ task.due_date|date:"H:i" }}</span>
-                <div style="flex:1;">
-                    <p style="font-weight:500;margin:0;">{{ task.get_task_type_display }}</p>
-                    {% if task.description %}<p class="dg-muted" style="margin:4px 0 0;">{{ task.description }}</p>{% endif %}
+        <!-- Сетка расписания -->
+        <div class="dp-schedule">
+            <div class="dp-hours">
+                {% for slot in slots %}<span>{{ slot.time }}</span>{% endfor %}
+            </div>
+            <div class="dp-grid">
+                {% for slot in slots %}
+                <div class="dp-slot"
+                     :class="{ 'dp-dragover': dragOver === '{{ slot.time }}' }"
+                     @dragenter.prevent="dragOver = '{{ slot.time }}'"
+                     @dragover.prevent="dragOver = '{{ slot.time }}'"
+                     @dragleave="if (dragOver === '{{ slot.time }}') dragOver = null"
+                     @drop.prevent="dragOver = null; dropTask('{{ slot.time }}')">
+                    {% for task in slot.tasks %}
+                    <div class="dp-event {% if task.is_overdue %}dp-overdue{% endif %}{% if task.status == 'DONE' %}dp-completed{% endif %}"
+                         draggable="true"
+                         x-show="filter === 'all' || (filter === 'done') === {% if task.status == 'DONE' %}true{% else %}false{% endif %}"
+                         @dragstart="dragId = {{ task.id }}; dragDate = '{{ task.due_date|date:"Y-m-d" }}'"
+                         @dragend="dragId = null"
+                         @click="modalTask = { id: {{ task.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: {% if task.status == 'DONE' %}true{% else %}false{% endif %}, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}' }">
+                        <span class="dp-time">{{ task.due_date|date:"H:i" }}</span>
+                        <div style="min-width:0;">
+                            <p class="dp-action">{{ task.description|default:task.get_task_type_display }}</p>
+                            {% if task.description %}<p class="dp-desc">{{ task.get_task_type_display }}</p>{% endif %}
+                        </div>
+                        <div class="dp-patient">
+                            {{ task.case.patient.last_name }} {{ task.case.patient.first_name }}<br>
+                            <span class="dg-badge {% if task.is_overdue %}dg-warn{% endif %}">
+                                {% if task.status == 'DONE' %}✓ Сделано{% elif task.is_overdue %}Просрочена{% else %}Не сделано{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-                <a href="{% url 'crm:case_detail' task.case.id %}" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
-                    <div class="dg-avatar" style="width:30px;height:30px;font-size:11px;">
-                        {{ task.case.patient.last_name|first }}{{ task.case.patient.first_name|first }}
-                    </div>
-                    <div style="font-size:12px;">
-                        <div>{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
-                        <div class="dg-muted">{{ task.case.get_status_display }}</div>
-                    </div>
-                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Задачи вне сетки 9–18 -->
+        {% if outside %}
+        <div style="margin-top:18px;">
+            <p class="dg-muted" style="margin-bottom:8px;">Вне расписания 09:00–18:00</p>
+            {% for task in outside %}
+            <div class="dp-event {% if task.is_overdue %}dp-overdue{% endif %}{% if task.status == 'DONE' %}dp-completed{% endif %}"
+                 style="cursor:pointer;margin-bottom:6px;"
+                 x-show="filter === 'all' || (filter === 'done') === {% if task.status == 'DONE' %}true{% else %}false{% endif %}"
+                 @click="modalTask = { id: {{ task.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: {% if task.status == 'DONE' %}true{% else %}false{% endif %}, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}' }">
+                <span class="dp-time">{{ task.due_date|date:"H:i" }}</span>
+                <div style="min-width:0;"><p class="dp-action">{{ task.description|default:task.get_task_type_display }}</p></div>
+                <div class="dp-patient">{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
             </div>
             {% endfor %}
         </div>
-        {% else %}
-        <p class="dg-muted" style="margin:0;">Нет просроченных задач</p>
         {% endif %}
+
+        <p class="dg-muted" style="margin-top:16px;">Перетащи блок на другой слот — время задачи обновится в CRM и попадёт в журнал аудита.</p>
     </div>
 
-    <!-- Сегодня -->
-    <div x-show="filter !== 'done'" class="dg-panel">
-        <div class="dg-panelhead">
-            <h2>Сегодня</h2>
-            <span class="dg-badge">{{ today_tasks.count }}</span>
-        </div>
-        
-        {% if today_tasks %}
-        <div :class="layout === 'cards' ? 'dg-metrics' : ''">
-            {% for task in today_tasks %}
-            <div :class="layout === 'cards' ? 'dg-panel' : 'dg-row'" style="margin:0;">
-                <span class="dg-time" :class="layout === 'cards' ? 'dg-muted' : ''">{{ task.due_date|date:"H:i" }}</span>
-                <div style="flex:1;">
-                    <p style="font-weight:500;margin:0;">{{ task.get_task_type_display }}</p>
-                    {% if task.description %}<p class="dg-muted" style="margin:4px 0 0;">{{ task.description }}</p>{% endif %}
-                </div>
-                <a href="{% url 'crm:case_detail' task.case.id %}" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
-                    <div class="dg-avatar" style="width:30px;height:30px;font-size:11px;">
-                        {{ task.case.patient.last_name|first }}{{ task.case.patient.first_name|first }}
-                    </div>
-                    <div style="font-size:12px;">
-                        <div>{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
-                        <div class="dg-muted">{{ task.case.get_status_display }}</div>
-                    </div>
-                </a>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p class="dg-muted" style="margin:0;">На сегодня задач нет</p>
-        {% endif %}
-    </div>
-
-    <!-- Ближайшие -->
+    <!-- Ближайшие дни -->
     {% if upcoming %}
-    <div x-show="filter !== 'done'" class="dg-panel">
-        <div class="dg-panelhead">
-            <h2>Ближайшие дни</h2>
-            <span class="dg-badge">{{ upcoming.count }}</span>
-        </div>
-        <div :class="layout === 'cards' ? 'dg-metrics' : ''">
-            {% for task in upcoming %}
-            <div :class="layout === 'cards' ? 'dg-panel' : 'dg-row'" style="margin:0;">
-                <span class="dg-time" :class="layout === 'cards' ? 'dg-muted' : ''">{{ task.due_date|date:"d.m H:i" }}</span>
-                <div style="flex:1;">
-                    <p style="font-weight:500;margin:0;">{{ task.get_task_type_display }}</p>
-                    {% if task.description %}<p class="dg-muted" style="margin:4px 0 0;">{{ task.description }}</p>{% endif %}
-                </div>
-                <a href="{% url 'crm:case_detail' task.case.id %}" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
-                    <div class="dg-avatar" style="width:30px;height:30px;font-size:11px;">
-                        {{ task.case.patient.last_name|first }}{{ task.case.patient.first_name|first }}
-                    </div>
-                    <div style="font-size:12px;">
-                        <div>{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
-                        <div class="dg-muted">{{ task.case.get_status_display }}</div>
-                    </div>
-                </a>
+    <div class="dg-panel" x-show="filter !== 'done'">
+        <div class="dg-panelhead"><h2>Ближайшие дни</h2><span class="dg-badge">{{ upcoming.count }}</span></div>
+        {% for task in upcoming %}
+        <div class="dg-row">
+            <span class="dg-time">{{ task.due_date|date:"d.m H:i" }}</span>
+            <div style="flex:1;min-width:0;">
+                <p style="font-weight:500;margin:0;">{{ task.description|default:task.get_task_type_display }}</p>
             </div>
-            {% endfor %}
+            <a href="{% url 'crm:case_detail' task.case.id %}" style="font-size:12px;color:inherit;text-decoration:none;">
+                {{ task.case.patient.last_name }} {{ task.case.patient.first_name }}
+            </a>
         </div>
+        {% endfor %}
     </div>
     {% endif %}
 
-    <!-- Выполненные -->
-    {% if done %}
-    <div x-show="filter !== 'open'" class="dg-panel">
-        <div class="dg-panelhead">
-            <h2>Выполненные</h2>
-            <span class="dg-badge">{{ done.count }}</span>
-        </div>
-        <div :class="layout === 'cards' ? 'dg-metrics' : ''">
-            {% for task in done %}
-            <div :class="layout === 'cards' ? 'dg-panel' : 'dg-row'" style="margin:0;opacity:0.6;">
-                <span class="dg-time" :class="layout === 'cards' ? 'dg-muted' : ''">{{ task.completed_at|date:"d.m H:i" }}</span>
-                <div style="flex:1;">
-                    <p style="font-weight:500;margin:0;text-decoration:line-through;">{{ task.get_task_type_display }}</p>
-                    {% if task.description %}<p class="dg-muted" style="margin:4px 0 0;">{{ task.description }}</p>{% endif %}
-                </div>
-                <a href="{% url 'crm:case_detail' task.case.id %}" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
-                    <div style="font-size:12px;">
-                        <div>{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
+    <!-- Скрытая форма переноса (drag-and-drop) -->
+    <form x-ref="moveForm" method="post" style="display:none;">
+        {% csrf_token %}
+        <input type="hidden" name="due_date">
+    </form>
+
+    <!-- Модалка задачи -->
+    <div x-show="modalTask" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modalTask = null"></div>
+    <div x-show="modalTask" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+            <template x-if="modalTask">
+                <div>
+                    <div class="dg-panelhead">
+                        <h2 x-text="modalTask.title"></h2>
+                        <button type="button" @click="modalTask = null">Закрыть</button>
                     </div>
-                </a>
-            </div>
-            {% endfor %}
+                    <p class="dg-muted" style="margin-bottom:14px;">
+                        <a :href="modalTask.caseUrl" style="color:inherit;" x-text="modalTask.patient"></a>
+                    </p>
+
+                    <form method="post" :action="'{% url 'crm:task_postpone' 0 %}'.replace('/0/', '/' + modalTask.id + '/')">
+                        {% csrf_token %}
+                        <label class="dg-muted" style="display:block;margin-bottom:6px;">Дата и время</label>
+                        <input type="datetime-local" name="due_date" x-model="modalTask.due" step="1800" style="width:100%;margin-bottom:12px;">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button type="submit" class="btn-primary">Сохранить время</button>
+                        </div>
+                    </form>
+
+                    <form method="post" :action="'{% url 'crm:task_complete' 0 %}'.replace('/0/', '/' + modalTask.id + '/')" style="margin-top:12px;" x-show="!modalTask.done">
+                        {% csrf_token %}
+                        <input type="hidden" name="result" value="Выполнено из плана дня">
+                        <button type="submit" style="border-color:var(--dg-green);color:var(--dg-green);">✓ Сделано</button>
+                    </form>
+                </div>
+            </template>
         </div>
     </div>
-    {% endif %}
 
+    <script>
+        function dropTask(time) {
+            if (!this.dragId) return;
+            const f = this.$refs.moveForm;
+            f.action = '{% url "crm:task_postpone" 0 %}'.replace('/0/', '/' + this.dragId + '/');
+            f.due_date.value = this.dragDate + 'T' + time;
+            this.dragId = null;
+            f.submit();
+        }
+    </script>
+    <div x-data="{}" style="display:none;"></div>
+    <script>
+        // регистрируем dropTask в скоупе Alpine
+        document.addEventListener('alpine:init', () => {
+            Alpine.magic('noop', () => () => {});
+        });
+    </script>
 </div>
+
+<script>
+    // привязка dropTask к Alpine-скоупу страницы
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('dayPage', () => ({
+            filter: 'all', dragId: null, dragDate: null, dragOver: null, modalTask: null,
+            dropTask(time) {
+                if (!this.dragId) return;
+                const f = this.$refs.moveForm;
+                f.action = '{% url "crm:task_postpone" 0 %}'.replace('/0/', '/' + this.dragId + '/');
+                f.due_date.value = this.dragDate + 'T' + time;
+                this.dragId = null;
+                f.submit();
+            }
+        }));
+    });
+</script>
 {% endblock %}

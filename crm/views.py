@@ -883,6 +883,14 @@ def task_postpone(request, task_id):
             task.due_date = new_dt
             task.save(update_fields=["due_date"])
             messages.success(request, "Задача перенесена.")
+            log_action(
+                action=AuditLog.Action.UPDATE,
+                instance=task,
+                field_name="due_date",
+                old_value="",
+                new_value=new_dt.strftime("%d.%m.%Y %H:%M"),
+                comment="Перенос задачи (в т.ч. drag-and-drop в плане дня)",
+            )
         else:
             messages.error(request, "Укажите новую дату и время.")
     return redirect("crm:case_detail", case_id=task.case_id)
@@ -1928,27 +1936,55 @@ def manager_report(request):
 
 @login_required
 def day_plan(request):
-    """План дня: задачи на сегодня + просроченные + ближайшие."""
-    today = timezone.now().date()
+    """План дня: расписание 9:00–18:00, шаг 30 минут (макет v2)."""
     now = timezone.now()
-    
-    # Все задачи куратора
-    my_tasks = Task.objects.filter(assignee=request.user).select_related("case", "case__patient")
-    
-    # Группировка
-    overdue = my_tasks.filter(status=Task.TaskStatus.PENDING, due_date__lt=now).order_by("due_date")
-    today_tasks = my_tasks.filter(status=Task.TaskStatus.PENDING, due_date__date=today).order_by("due_date")
-    upcoming = my_tasks.filter(
+    today = now.date()
+
+    # В сетку: просроченные (за прошлые дни) + задачи сегодня + сделанные сегодня
+    grid_tasks = list(
+        Task.objects.filter(
+            assignee=request.user,
+            status=Task.TaskStatus.PENDING,
+            due_date__date__lte=today,
+        ).select_related("case", "case__patient").order_by("due_date")
+    ) + list(
+        Task.objects.filter(
+            assignee=request.user,
+            status=Task.TaskStatus.DONE,
+            due_date__date=today,
+        ).select_related("case", "case__patient").order_by("due_date")
+    )
+
+    # Ближайшие дни (вне сетки сегодня)
+    upcoming = Task.objects.filter(
+        assignee=request.user,
         status=Task.TaskStatus.PENDING,
-        due_date__date__range=(today + timedelta(days=1), today + timedelta(days=7))
-    ).order_by("due_date")[:10]
-    done = my_tasks.filter(status=Task.TaskStatus.DONE).order_by("-completed_at")[:20]
-    
+        due_date__date__range=(today + timedelta(days=1), today + timedelta(days=7)),
+    ).select_related("case", "case__patient").order_by("due_date")[:8]
+
+    # Слоты 09:00–17:30
+    slots = []
+    for m in range(9 * 60, 18 * 60, 30):
+        slots.append({"time": f"{m // 60:02d}:{m % 60:02d}", "tasks": []})
+
+    outside = []
+    for t in grid_tasks:
+        local = timezone.localtime(t.due_date)
+        mins = local.hour * 60 + local.minute
+        if 9 * 60 <= mins < 18 * 60:
+            slots[(mins - 9 * 60) // 30]["tasks"].append(t)
+        else:
+            outside.append(t)
+
+    not_done = sum(1 for t in grid_tasks if t.status == Task.TaskStatus.PENDING)
+    done_count = len(grid_tasks) - not_done
+
     return render(request, "crm/day_plan.html", {
         "title": "План дня",
-        "overdue": overdue,
-        "today_tasks": today_tasks,
+        "slots": slots,
+        "outside": outside,
         "upcoming": upcoming,
-        "done": done,
+        "not_done": not_done,
+        "done_count": done_count,
         "today": today,
     })

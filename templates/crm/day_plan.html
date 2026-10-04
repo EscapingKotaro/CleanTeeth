@@ -1,0 +1,164 @@
+{% extends "base_v2.html" %}
+
+{% block title %}{{ title }} · Dento CRM{% endblock %}
+
+{% block content %}
+<div x-data="{ layout: 'rows', filter: 'all' }">
+    
+    <div class="dg-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+        <div>
+            <div class="dg-tag">{{ today|date:"l, j F" }}</div>
+            <h1>{{ title }}</h1>
+            <p class="dg-muted">Задачи на сегодня и ближайшие дни</p>
+        </div>
+        <button class="btn-primary" onclick="window.location.href='{% url 'crm:cases_list' %}'">
+            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 4v16m8-8H4"/>
+            </svg>
+            Новая задача
+        </button>
+    </div>
+
+    <!-- Toolbar -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+        <div style="display:flex;gap:5px;background:var(--dg-soft);padding:4px;border-radius:10px;">
+            <button @click="filter = 'all'" :class="filter === 'all' ? 'btn-primary' : ''" :aria-pressed="filter === 'all'">Все</button>
+            <button @click="filter = 'open'" :class="filter === 'open' ? 'btn-primary' : ''" :aria-pressed="filter === 'open'">Не сделано</button>
+            <button @click="filter = 'done'" :class="filter === 'done' ? 'btn-primary' : ''" :aria-pressed="filter === 'done'">Сделано</button>
+        </div>
+        
+        <div style="display:flex;gap:5px;background:var(--dg-soft);padding:4px;border-radius:10px;">
+            <button @click="layout = 'rows'" :class="layout === 'rows' ? 'btn-primary' : ''" :aria-pressed="layout === 'rows'">Строки</button>
+            <button @click="layout = 'cards'" :class="layout === 'cards' ? 'btn-primary' : ''" :aria-pressed="layout === 'cards'">Карточки</button>
+        </div>
+        
+        <p class="dg-muted" style="margin:auto 0;">
+            <span x-show="filter !== 'done'">{{ overdue.count }} просрочено · {{ today_tasks.count }} сегодня</span>
+            <span x-show="filter === 'done'">{{ done.count }} выполнено</span>
+        </p>
+    </div>
+
+    <!-- Просроченные -->
+    <div x-show="filter !== 'done'" class="dg-panel">
+        <div class="dg-panelhead">
+            <h2 style="color:var(--dg-warn);">Просроченные</h2>
+            <span class="dg-badge dg-warn">{{ overdue.count }}</span>
+        </div>
+        
+        {% if overdue %}
+        <div :class="layout === 'cards' ? 'dg-metrics' : ''">
+            {% for task in overdue %}
+            <div :class="layout === 'cards' ? 'dg-panel' : 'dg-row'" style="margin:0;">
+                <span class="dg-time" :class="layout === 'cards' ? 'dg-muted' : ''">{{ task.due_date|date:"H:i" }}</span>
+                <div style="flex:1;">
+                    <p style="font-weight:500;margin:0;">{{ task.get_task_type_display }}</p>
+                    {% if task.description %}<p class="dg-muted" style="margin:4px 0 0;">{{ task.description }}</p>{% endif %}
+                </div>
+                <a href="{% url 'crm:case_detail' task.case.id %}" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+                    <div class="dg-avatar" style="width:30px;height:30px;font-size:11px;">
+                        {{ task.case.patient.last_name|first }}{{ task.case.patient.first_name|first }}
+                    </div>
+                    <div style="font-size:12px;">
+                        <div>{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
+                        <div class="dg-muted">{{ task.case.get_status_display }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="dg-muted" style="margin:0;">Нет просроченных задач</p>
+        {% endif %}
+    </div>
+
+    <!-- Сегодня -->
+    <div x-show="filter !== 'done'" class="dg-panel">
+        <div class="dg-panelhead">
+            <h2>Сегодня</h2>
+            <span class="dg-badge">{{ today_tasks.count }}</span>
+        </div>
+        
+        {% if today_tasks %}
+        <div :class="layout === 'cards' ? 'dg-metrics' : ''">
+            {% for task in today_tasks %}
+            <div :class="layout === 'cards' ? 'dg-panel' : 'dg-row'" style="margin:0;">
+                <span class="dg-time" :class="layout === 'cards' ? 'dg-muted' : ''">{{ task.due_date|date:"H:i" }}</span>
+                <div style="flex:1;">
+                    <p style="font-weight:500;margin:0;">{{ task.get_task_type_display }}</p>
+                    {% if task.description %}<p class="dg-muted" style="margin:4px 0 0;">{{ task.description }}</p>{% endif %}
+                </div>
+                <a href="{% url 'crm:case_detail' task.case.id %}" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+                    <div class="dg-avatar" style="width:30px;height:30px;font-size:11px;">
+                        {{ task.case.patient.last_name|first }}{{ task.case.patient.first_name|first }}
+                    </div>
+                    <div style="font-size:12px;">
+                        <div>{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
+                        <div class="dg-muted">{{ task.case.get_status_display }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="dg-muted" style="margin:0;">На сегодня задач нет</p>
+        {% endif %}
+    </div>
+
+    <!-- Ближайшие -->
+    {% if upcoming %}
+    <div x-show="filter !== 'done'" class="dg-panel">
+        <div class="dg-panelhead">
+            <h2>Ближайшие дни</h2>
+            <span class="dg-badge">{{ upcoming.count }}</span>
+        </div>
+        <div :class="layout === 'cards' ? 'dg-metrics' : ''">
+            {% for task in upcoming %}
+            <div :class="layout === 'cards' ? 'dg-panel' : 'dg-row'" style="margin:0;">
+                <span class="dg-time" :class="layout === 'cards' ? 'dg-muted' : ''">{{ task.due_date|date:"d.m H:i" }}</span>
+                <div style="flex:1;">
+                    <p style="font-weight:500;margin:0;">{{ task.get_task_type_display }}</p>
+                    {% if task.description %}<p class="dg-muted" style="margin:4px 0 0;">{{ task.description }}</p>{% endif %}
+                </div>
+                <a href="{% url 'crm:case_detail' task.case.id %}" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+                    <div class="dg-avatar" style="width:30px;height:30px;font-size:11px;">
+                        {{ task.case.patient.last_name|first }}{{ task.case.patient.first_name|first }}
+                    </div>
+                    <div style="font-size:12px;">
+                        <div>{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
+                        <div class="dg-muted">{{ task.case.get_status_display }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Выполненные -->
+    {% if done %}
+    <div x-show="filter !== 'open'" class="dg-panel">
+        <div class="dg-panelhead">
+            <h2>Выполненные</h2>
+            <span class="dg-badge">{{ done.count }}</span>
+        </div>
+        <div :class="layout === 'cards' ? 'dg-metrics' : ''">
+            {% for task in done %}
+            <div :class="layout === 'cards' ? 'dg-panel' : 'dg-row'" style="margin:0;opacity:0.6;">
+                <span class="dg-time" :class="layout === 'cards' ? 'dg-muted' : ''">{{ task.completed_at|date:"d.m H:i" }}</span>
+                <div style="flex:1;">
+                    <p style="font-weight:500;margin:0;text-decoration:line-through;">{{ task.get_task_type_display }}</p>
+                    {% if task.description %}<p class="dg-muted" style="margin:4px 0 0;">{{ task.description }}</p>{% endif %}
+                </div>
+                <a href="{% url 'crm:case_detail' task.case.id %}" style="display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+                    <div style="font-size:12px;">
+                        <div>{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

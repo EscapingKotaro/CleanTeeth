@@ -65,4 +65,6 @@ urlpatterns = [
 
 
     path("reports/manager/", views.manager_report, name="manager_report"),
+
+    path("day/", views.day_plan, name="day_plan"),
 ]

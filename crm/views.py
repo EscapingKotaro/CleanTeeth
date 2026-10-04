@@ -1924,3 +1924,31 @@ def manager_report(request):
         "curator_rows": curator_rows,
         "detail_rows": detail_rows,
     })
+
+
+@login_required
+def day_plan(request):
+    """План дня: задачи на сегодня + просроченные + ближайшие."""
+    today = timezone.now().date()
+    now = timezone.now()
+    
+    # Все задачи куратора
+    my_tasks = Task.objects.filter(assignee=request.user).select_related("case", "case__patient")
+    
+    # Группировка
+    overdue = my_tasks.filter(status=Task.TaskStatus.PENDING, due_date__lt=now).order_by("due_date")
+    today_tasks = my_tasks.filter(status=Task.TaskStatus.PENDING, due_date__date=today).order_by("due_date")
+    upcoming = my_tasks.filter(
+        status=Task.TaskStatus.PENDING,
+        due_date__date__range=(today + timedelta(days=1), today + timedelta(days=7))
+    ).order_by("due_date")[:10]
+    done = my_tasks.filter(status=Task.TaskStatus.DONE).order_by("-completed_at")[:20]
+    
+    return render(request, "crm/day_plan.html", {
+        "title": "План дня",
+        "overdue": overdue,
+        "today_tasks": today_tasks,
+        "upcoming": upcoming,
+        "done": done,
+        "today": today,
+    })

@@ -1,0 +1,133 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dento CRM{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
+    <link rel="apple-touch-icon" href="{% static 'favicon.svg' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/dento-theme.css' %}">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>[x-cloak] { display: none !important; }</style>
+</head>
+<body>
+    <div class="dg-shell">
+        <!-- Боковая навигация -->
+        <aside class="dg-side">
+            <div class="dg-brand">
+                <div class="dg-logo">d</div>
+                <span>dento<span style="color:var(--dg-muted)">.</span></span>
+            </div>
+            
+            <nav class="dg-nav" aria-label="Разделы CRM">
+                <a href="{% url 'crm:dashboard' %}" 
+                   class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    <span>Рабочий стол</span>
+                </a>
+                
+                <a href="{% url 'crm:cases_list' %}"
+                   class="{% if request.resolver_match.url_name == 'cases_list' %}active{% endif %}">
+                    <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                    </svg>
+                    <span>Пациенты</span>
+                </a>
+                
+                <a href="{% url 'crm:day_plan' %}"
+                   class="{% if request.resolver_match.url_name == 'day_plan' %}active{% endif %}">
+                    <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>План дня</span>
+                </a>
+                
+                {% if user.role == 'MANAGER' or user.role == 'ADMIN' %}
+                <a href="{% url 'crm:manager_report' %}"
+                   class="{% if request.resolver_match.url_name == 'manager_report' %}active{% endif %}">
+                    <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    <span>Отчёты</span>
+                </a>
+                {% endif %}
+            </nav>
+            
+            <div class="dg-bottom">
+                <div class="dg-person">
+                    <div class="dg-avatar">
+                        {{ user.first_name|first|default:user.username|first|upper }}{{ user.last_name|first|default:""|upper }}
+                    </div>
+                    <div>
+                        <p style="margin:0;font-size:13px;font-weight:500;">{{ user.get_full_name|default:user.username }}</p>
+                        <p class="dg-muted" style="margin:0;">{{ user.get_role_display }}</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Основная область -->
+        <main class="dg-main">
+            <header class="dg-top">
+                <span class="dg-muted">Клиника · Кураторский отдел</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button id="theme-toggle" type="button" aria-label="Переключить тему">
+                        <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                        </svg>
+                        <span id="theme-label">Тёмная тема</span>
+                    </button>
+                    
+                    <form method="post" action="{% url 'crm:logout' %}" style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" style="color:var(--dg-warn);">
+                            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </header>
+
+            {% if messages %}
+            <div style="margin-bottom:16px;">
+                {% for message in messages %}
+                <div class="dg-alert" style="{% if message.tags == 'error' %}border-left:3px solid var(--dg-warn);{% elif message.tags == 'success' %}border-left:3px solid var(--dg-green);{% endif %}">
+                    <p style="margin:0;">{{ message }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script>
+        // Переключатель темы
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeLabel = document.getElementById('theme-label');
+        const html = document.documentElement;
+        
+        const saved = localStorage.getItem('dento-theme') || 'light';
+        html.dataset.theme = saved;
+        updateLabel();
+        
+        themeToggle.onclick = () => {
+            const current = html.dataset.theme;
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.dataset.theme = next;
+            localStorage.setItem('dento-theme', next);
+            updateLabel();
+        };
+        
+        function updateLabel() {
+            themeLabel.textContent = html.dataset.theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+        }
+    </script>
+</body>
+</html>

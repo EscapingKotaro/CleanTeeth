@@ -41,7 +41,7 @@ class CustomPasswordChangeDoneView(auth_views.PasswordChangeDoneView):
 
 
 ROLE_HOME = {
-    CustomUser.Role.CURATOR: "crm:dashboard",
+    CustomUser.Role.CURATOR: "crm:home",
     CustomUser.Role.SENIOR_CURATOR: "crm:team_control",
     CustomUser.Role.MANAGER: "crm:manager_report",
     CustomUser.Role.ADMIN: "crm:users_list",

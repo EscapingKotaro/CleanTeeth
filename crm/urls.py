@@ -67,4 +67,8 @@ urlpatterns = [
     path("reports/manager/", views.manager_report, name="manager_report"),
 
     path("day/", views.day_plan, name="day_plan"),
+    path("home/", views.home, name="home"),
+    path("patients-board/", views.patients_board, name="patients_board"),
+    path("doc-checks/", views.doc_checks, name="doc_checks"),
+    path("doc-checks/create/", views.doc_check_create, name="doc_check_create"),
 ]

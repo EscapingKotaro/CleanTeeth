@@ -173,16 +173,7 @@ body {
   padding: 22px 26px;
 }
 
-.dg-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--dg-line);
-  padding-bottom: 18px;
-  margin-bottom: 24px;
-}
+
 
 /* Panels */
 .dg-panel {
@@ -463,3 +454,37 @@ input:focus, select:focus, textarea:focus {
 .dp-event.dp-overdue .dp-time { color: var(--dg-warn); }
 .dp-event.dp-completed { border-left-color: var(--dg-green); opacity: .65; }
 .dp-event.dp-completed .dp-action { text-decoration: line-through; color: var(--dg-muted); }
+
+/* Верхняя строка — светлая скруглённая панель (как в макете) */
+.dg-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  background: var(--dg-surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--dg-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 26px;
+}
+
+/* Подвал-примечание */
+.dg-foot { display: flex; justify-content: space-between; gap: 10px; color: var(--dg-muted); font-size: 11px; margin-top: 26px; }
+
+/* Шапка страницы */
+.dg-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 6px 0 22px; flex-wrap: wrap; }
+
+/* Чекбокс в строках плана */
+.dg-check { width: 17px; height: 17px; accent-color: #567b92; margin: 0; flex-shrink: 0; cursor: pointer; }
+
+/* Строки деталей */
+.dg-detail { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--dg-line); font-size: 12px; }
+.dg-detail:last-child { border-bottom: 0; }
+
+/* Вертикальный стек панелей */
+.dg-stack { display: grid; gap: 16px; }
+
+/* Полосы этапов («Путь пациентов») */
+.dg-stage { display: grid; grid-template-columns: 115px 1fr 44px; align-items: center; gap: 10px; margin-top: 14px; font-size: 12px; }
+.dg-stage div { height: 8px; border-radius: 3px; background: var(--dg-soft); }
+.dg-stage span { display: block; height: 100%; border-radius: 3px; background: var(--dg-main); }

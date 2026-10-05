@@ -776,3 +776,34 @@ class Payment(models.Model):
     def __str__(self):
         kind = "Аванс" if self.is_advance else "Оплата"
         return f"{kind} · {self.plan} · {self.amount} · {self.payment_date:%d.%m.%Y}"
+        
+class DocumentCheck(models.Model):
+    """Проверка документов по кейсу (реестр управляющей, ТЗ п.12)."""
+
+    class Status(models.TextChoices):
+        NOT_CHECKED = "NOT_CHECKED", "Не проверено"
+        RECEIVED = "RECEIVED", "Документы получены"
+        CHECKED = "CHECKED", "Проверено"
+        DISCREPANCY = "DISCREPANCY", "Расхождение"
+
+    class Discrepancy(models.TextChoices):
+        NO_PLAN_SIGNATURE = "NO_PLAN_SIGNATURE", "Нет подписи плана"
+        NO_SCHEDULE = "NO_SCHEDULE", "Нет графика платежей"
+        SUM_MISMATCH = "SUM_MISMATCH", "Сумма графика не совпадает с планом"
+        NO_CONTRACT = "NO_CONTRACT", "Нет действующего договора"
+        OTHER = "OTHER", "Другое"
+
+    case = models.ForeignKey(CuratorCase, on_delete=models.CASCADE, related_name="document_checks", verbose_name="Кейс")
+    status = models.CharField("Статус проверки", max_length=20, choices=Status.choices, default=Status.NOT_CHECKED)
+    discrepancy_type = models.CharField("Тип расхождения", max_length=30, choices=Discrepancy.choices, blank=True)
+    comment = models.TextField("Комментарий", blank=True)
+    checked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="document_checks", verbose_name="Проверил")
+    created_at = models.DateTimeField("Когда", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Проверка документов"
+        verbose_name_plural = "Проверки документов"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.case} · {self.get_status_display()}"

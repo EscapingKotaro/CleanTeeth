@@ -1,0 +1,36 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ title }} · Dento CRM{% endblock %}
+
+{% block content %}
+<div class="dg-heading">
+    <div>
+        <div class="dg-tag">КУРАТОРСКИЙ ОТДЕЛ</div>
+        <h1>Пациенты</h1>
+    </div>
+    {% if is_manager %}
+    <a href="{% url 'crm:patients_list' %}" style="text-decoration:none;">Управление базой</a>
+    {% endif %}
+</div>
+
+<section class="dg-panel">
+    <table class="dg-table">
+        <thead>
+            <tr><th>Пациент</th>{% if is_manager %}<th>Куратор</th>{% endif %}<th>Этап</th><th>Сумма</th></tr>
+        </thead>
+        <tbody>
+            {% for case in cases %}
+            <tr style="cursor:pointer;" onclick="window.location.href='{% url 'crm:case_detail' case.id %}'">
+                <td>{{ case.patient.last_name }} {{ case.patient.first_name }}</td>
+                {% if is_manager %}<td class="dg-muted">{{ case.curator.get_full_name|default:case.curator.username }}</td>{% endif %}
+                <td>
+                    <span class="dg-badge {% if case.status == 'LOST' %}dg-warn{% endif %}">{{ case.get_status_display }}</span>
+                </td>
+                <td>{{ case.plan.agreed_sum|floatformat:0 }} ₽</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="dg-muted" style="padding:20px 10px;">Сопровождений нет</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ title }} · Dento CRM{% endblock %}
+
+{% block content %}
+{% if not is_manager %}
+<!-- ==================== КАБИНЕТ КУРАТОРА ==================== -->
+<div class="dg-heading">
+    <div>
+        <div class="dg-tag">{{ today_ru }}</div>
+        <h1>Ваш день, {{ user.first_name|default:user.username }}</h1>
+        <p class="dg-muted">Каждый пациент — с понятным следующим шагом</p>
+    </div>
+    <a href="{% url 'crm:patients_list' %}" class="btn-primary" style="text-decoration:none;">
+        <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        Новый пациент
+    </a>
+</div>
+
+<div class="dg-metrics">
+    <section class="dg-panel">
+        <p class="dg-muted">Задачи сегодня</p>
+        <div class="dg-value">{{ tasks_today_count }}</div>
+        <p class="dg-muted">{{ overdue_count }} требуют внимания</p>
+    </section>
+    <section class="dg-panel">
+        <p class="dg-muted">Согласовано за месяц</p>
+        <div class="dg-value">{{ month_agreed|floatformat:0 }} ₽</div>
+        <p class="dg-muted">{{ month_percent }}% от плана {{ monthly_plan.plan_amount|floatformat:0 }} ₽</p>
+    </section>
+    <section class="dg-panel">
+        <p class="dg-muted">Пациенты в сопровождении</p>
+        <div class="dg-value">{{ active_cases }}</div>
+        <p class="dg-muted">У {{ with_next }} есть следующее действие</p>
+    </section>
+</div>
+
+<div class="dg-split">
+    <section class="dg-panel">
+        <div class="dg-panelhead">
+            <h2>План дня</h2>
+            <a href="{% url 'crm:day_plan' %}" style="text-decoration:none;">Все задачи</a>
+        </div>
+        {% for task in day_tasks %}
+        <form method="post" action="{% url 'crm:task_complete' task.id %}" class="dg-row"
+              style="border-top:{% if forloop.first %}0{% else %}1px solid var(--dg-line){% endif %};">
+            {% csrf_token %}
+            <input type="hidden" name="result" value="Отмечено на рабочем столе">
+            <input type="checkbox" class="dg-check" onchange="this.form.submit()" aria-label="Выполнить задачу">
+            <span class="dg-time" {% if task.is_overdue %}style="color:var(--dg-warn);"{% endif %}>{{ task.due_date|date:"H:i" }}</span>
+            <div style="flex:1;min-width:0;">
+                <p style="font-weight:500;margin:0;">{{ task.description|default:task.get_task_type_display }}</p>
+                <p class="dg-muted" style="margin:2px 0 0;">{{ task.case.patient.last_name }} {{ task.case.patient.first_name }} · {{ task.case.get_status_display }}</p>
+                {% if task.is_overdue %}<span class="dg-badge dg-warn">Просрочена</span>{% endif %}
+            </div>
+        </form>
+        {% empty %}
+        <p class="dg-muted">Задач на сегодня нет</p>
+        {% endfor %}
+    </section>
+
+    <div class="dg-stack">
+        <section class="dg-panel">
+            <div class="dg-panelhead"><h2>Месячный план</h2><span class="dg-muted">{% now "F" %}</span></div>
+            {% if monthly_plan %}
+            <div class="dg-amount">{{ monthly_plan.fact_amount|floatformat:0 }} <span class="dg-muted">/ {{ monthly_plan.plan_amount|floatformat:0 }} ₽</span></div>
+            <div class="dg-progress"><span style="width:{{ progress_width }}%"></span></div>
+            <div class="dg-detail"><span class="dg-muted">Осталось до плана</span><span>{{ monthly_plan.remaining|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Текущая мотивация</span><span>{{ monthly_plan.total_payout|floatformat:0 }} ₽</span></div>
+            {% else %}
+            <p class="dg-muted">План на месяц не назначен</p>
+            {% endif %}
+        </section>
+
+        <section class="dg-panel">
+            <h2 style="margin-bottom:6px;">Требуют внимания</h2>
+            {% if overdue_count %}
+            <div class="dg-alert">
+                <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <div><p>{{ overdue_count }} просроченные задачи</p><p class="dg-muted">Уточнить следующий шаг</p></div>
+            </div>
+            {% endif %}
+            {% if no_next_count %}
+            <div class="dg-alert">
+                <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div><p>{{ no_next_count }} пациент без действия</p><p class="dg-muted">Назначить задачу и дату</p></div>
+            </div>
+            {% endif %}
+            {% if od_pay_sum > 0 %}
+            <div class="dg-alert">
+                <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                <div><p>{{ od_pay_sum|floatformat:0 }} ₽ просрочено</p><p class="dg-muted">Платежи по графику</p></div>
+            </div>
+            {% endif %}
+            {% if not overdue_count and not no_next_count and not od_pay_sum %}
+            <p class="dg-muted">Отклонений нет</p>
+            {% endif %}
+        </section>
+    </div>
+</div>
+
+{% else %}
+<!-- ==================== КАБИНЕТ РУКОВОДИТЕЛЯ ==================== -->
+<div class="dg-heading">
+    <div>
+        <div class="dg-tag">КУРАТОРСКИЙ ОТДЕЛ</div>
+        <h1>Отдел под контролем</h1>
+        <p class="dg-muted">Результаты кураторов и точки внимания</p>
+    </div>
+    <a href="{% url 'crm:manager_report' %}" class="btn-primary" style="text-decoration:none;">Полный отчёт</a>
+</div>
+
+<div class="dg-split">
+    <section class="dg-panel">
+        <div class="dg-panelhead"><h2>Путь пациентов</h2><span class="dg-muted">{% now "F" %}</span></div>
+        {% for s in stages %}
+        <div class="dg-stage">
+            <p>{{ s.label }}</p>
+            <div><span style="width:{{ s.width }}%"></span></div>
+            <p style="text-align:right;">{{ s.count }}</p>
+        </div>
+        {% endfor %}
+        <div class="dg-detail" style="margin-top:22px;"><span class="dg-muted">Презентация → согласование</span><span>{{ conv }}%</span></div>
+    </section>
+
+    <section class="dg-panel">
+        <h2 style="margin-bottom:6px;">Контроль отдела</h2>
+        {% if od_tasks_count %}
+        <div class="dg-alert">
+            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <div><p>{{ od_tasks_count }} просроченных задач</p><p class="dg-muted">У {{ od_tasks_curators }} кураторов</p></div>
+        </div>
+        {% endif %}
+        {% if pending_checks %}
+        <div class="dg-alert">
+            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-4"/><path d="M12 10h.01"/></svg>
+            <div><p>{{ pending_checks }} проверки документов</p><p class="dg-muted">Ожидают управляющую</p></div>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="dg-panel" style="grid-column:1/-1;">
+        <div class="dg-panelhead"><h2>Результаты кураторов</h2><span class="dg-muted">{% now "F" %}</span></div>
+        <table class="dg-table">
+            <thead><tr><th>Куратор</th><th>План</th><th>Факт</th><th>%</th><th>Просрочки</th></tr></thead>
+            <tbody>
+                {% for r in curator_rows %}
+                <tr>
+                    <td>{{ r.user.get_full_name|default:r.user.username }}</td>
+                    <td>{{ r.plan|floatformat:0 }} ₽</td>
+                    <td>{{ r.fact|floatformat:0 }} ₽</td>
+                    <td>{{ r.percent }}%</td>
+                    <td>{% if r.overdue %}<span class="dg-badge dg-warn">{{ r.overdue }}</span>{% else %}0{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</div>
+{% endif %}
+{% endblock %}

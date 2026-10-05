@@ -1,0 +1,82 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ title }} · Dento CRM{% endblock %}
+
+{% block content %}
+<div x-data="{ modal: null, checkCase: null }">
+    <div class="dg-heading">
+        <div>
+            <div class="dg-tag">КУРАТОРСКИЙ ОТДЕЛ</div>
+            <h1>Проверка документов</h1>
+        </div>
+    </div>
+
+    <section class="dg-panel">
+        <table class="dg-table">
+            <thead>
+                <tr><th>Пациент</th><th>Документы</th><th>Проверка</th>{% if can_check %}<th></th>{% endif %}</tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.case.patient.last_name }} {{ row.case.patient.first_name }}</td>
+                    <td>{{ row.docs }}</td>
+                    <td>
+                        {% if row.check %}
+                        <span class="dg-badge {% if row.check.status == 'DISCREPANCY' %}dg-warn{% elif row.check.status == 'CHECKED' %}dg-success{% endif %}">
+                            {{ row.check.get_status_display }}
+                        </span>
+                        {% else %}
+                        <span class="dg-badge">Не проверено</span>
+                        {% endif %}
+                    </td>
+                    {% if can_check %}
+                    <td style="text-align:right;">
+                        <button type="button" @click="checkCase = {{ row.case.id }}; modal = 'check'">Проверить</button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="dg-muted" style="padding:20px 10px;">Нет кейсов, ожидающих проверки</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    {% if can_check %}
+    <div x-show="modal" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
+    <div x-show="modal === 'check'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" action="{% url 'crm:doc_check_create' %}" class="dg-panel"
+              style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="case_id" :value="checkCase">
+            <div class="dg-panelhead"><h2>Проверка документов</h2></div>
+            <div style="display:grid;gap:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Статус
+                    <select name="status">
+                        {% for value, label in check_statuses %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Тип расхождения (если есть)
+                    <select name="discrepancy_type">
+                        <option value="">—</option>
+                        {% for value, label in discrepancies %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                    <textarea name="comment" rows="2"></textarea>
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Сохранить</button>
+            </div>
+            <p class="dg-muted" style="margin-top:10px;">При статусе «Расхождение» куратору автоматически создаётся задача.</p>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

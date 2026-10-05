@@ -1988,3 +1988,192 @@ def day_plan(request):
         "done_count": done_count,
         "today": today,
     })
+
+
+ACTIVE_STATUSES = [
+    CuratorCase.Status.TRANSFERRED, CuratorCase.Status.PRESENTED,
+    CuratorCase.Status.IN_DECISION, CuratorCase.Status.AGREED,
+    CuratorCase.Status.IN_PROGRESS,
+]
+
+WD = ["ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА", "СУББОТА", "ВОСКРЕСЕНЬЕ"]
+MN = ["ЯНВАРЯ", "ФЕВРАЛЯ", "МАРТА", "АПРЕЛЯ", "МАЯ", "ИЮНЯ",
+      "ИЮЛЯ", "АВГУСТА", "СЕНТЯБРЯ", "ОКТЯБРЯ", "НОЯБРЯ", "ДЕКАБРЯ"]
+
+
+def docs_state(case):
+    """Состояние документов по кейсу (колонка «Документы»)."""
+    p = case.plan
+    if not p.is_signed_by_patient:
+        return "Нет подписи плана"
+    if p.plan_type == TreatmentPlan.PlanType.WITH_ADVANCE and not p.schedule.exists():
+        return "Нет графика платежей"
+    if p.plan_type == TreatmentPlan.PlanType.WITH_ADVANCE and not p.is_schedule_signed:
+        return "Нет подписи графика"
+    return "План и график подписаны"
+
+
+@login_required
+def home(request):
+    """Рабочий стол: кабинет куратора или руководителя (макет v2)."""
+    now = timezone.now()
+    today = now.date()
+    is_manager = request.user.role in (
+        CustomUser.Role.MANAGER, CustomUser.Role.ADMIN, CustomUser.Role.SENIOR_CURATOR
+    )
+    ctx = {
+        "title": "Рабочий стол",
+        "today_ru": f"{WD[today.weekday()]}, {today.day} {MN[today.month - 1]}",
+        "is_manager": is_manager,
+    }
+
+    if not is_manager:
+        my_pending = Task.objects.filter(assignee=request.user, status=Task.TaskStatus.PENDING)
+        day_tasks = list(my_pending.filter(due_date__date__lt=today).order_by("due_date")) \
+            + list(my_pending.filter(due_date__date=today).order_by("due_date"))
+        active = CuratorCase.objects.filter(curator=request.user, status__in=ACTIVE_STATUSES)
+        with_next = active.annotate(
+            f=Count("tasks", filter=Q(tasks__status=Task.TaskStatus.PENDING, tasks__due_date__date__gte=today))
+        ).filter(f__gt=0).count()
+        mp = CuratorMonthlyPlan.objects.filter(curator=request.user, year=today.year, month=today.month).first()
+        month_agreed = TreatmentPlan.objects.filter(
+            cases__curator=request.user,
+            agreement_date__year=today.year, agreement_date__month=today.month,
+        ).exclude(cases__status=CuratorCase.Status.LOST).distinct().aggregate(
+            s=Coalesce(Sum("agreed_sum"), Decimal("0"))
+        )["s"]
+        od_items = PaymentSchedule.objects.filter(
+            plan__cases__curator=request.user, due_date__lt=today
+        ).exclude(paid_amount__gte=F("planned_amount")).distinct()
+        od_pay_sum = sum((i.remaining for i in od_items), Decimal("0"))
+
+        ctx.update({
+            "day_tasks": day_tasks[:5],
+            "tasks_today_count": my_pending.filter(due_date__date=today).count(),
+            "overdue_count": my_pending.filter(due_date__lt=now).count(),
+            "active_cases": active.count(),
+            "with_next": with_next,
+            "no_next_count": active.count() - with_next,
+            "monthly_plan": mp,
+            "month_agreed": month_agreed,
+            "month_percent": round(month_agreed / mp.plan_amount * 100) if mp and mp.plan_amount else 0,
+            "progress_width": min(100, mp.completion_percent) if mp else 0,
+            "od_pay_sum": od_pay_sum,
+        })
+    else:
+        cases = CuratorCase.objects.filter(curator__role=CustomUser.Role.CURATOR)
+        cohort = cases.filter(created_at__year=today.year, created_at__month=today.month)
+        stage_order = [
+            (CuratorCase.Status.TRANSFERRED, "Передано"),
+            (CuratorCase.Status.PRESENTED, "Презентовано"),
+            (CuratorCase.Status.AGREED, "Согласовано"),
+            (CuratorCase.Status.IN_PROGRESS, "В лечении"),
+            (CuratorCase.Status.COMPLETED, "Завершено"),
+        ]
+        stages = []
+        base = cohort.filter(status=stage_order[0][0]).count() or 1
+        for s, label in stage_order:
+            c = cohort.filter(status=s).count()
+            stages.append({"label": label, "count": c, "width": round(c / base * 100)})
+        pres = cohort.filter(status__in=[CuratorCase.Status.PRESENTED, CuratorCase.Status.IN_DECISION,
+                                         CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS,
+                                         CuratorCase.Status.COMPLETED]).count()
+        agr = cohort.filter(status__in=[CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS,
+                                        CuratorCase.Status.COMPLETED]).count()
+        od_tasks = Task.objects.filter(case__in=cases, status=Task.TaskStatus.PENDING, due_date__lt=now)
+        pending_checks = cases.filter(status__in=[CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS]) \
+            .annotate(nc=Count("document_checks")).filter(nc=0).count()
+        curator_rows = []
+        for u in CustomUser.objects.filter(role=CustomUser.Role.CURATOR).order_by("last_name"):
+            ump = CuratorMonthlyPlan.objects.filter(curator=u, year=today.year, month=today.month).first()
+            fact = compute_k1(u, today.year, today.month)
+            curator_rows.append({
+                "user": u,
+                "plan": ump.plan_amount if ump else Decimal("0"),
+                "fact": fact,
+                "percent": round(fact / ump.plan_amount * 100) if ump and ump.plan_amount else 0,
+                "overdue": Task.objects.filter(case__curator=u, status=Task.TaskStatus.PENDING, due_date__lt=now).count(),
+            })
+        ctx.update({
+            "stages": stages,
+            "conv": round(agr / pres * 100) if pres else 0,
+            "od_tasks_count": od_tasks.count(),
+            "od_tasks_curators": od_tasks.values("case__curator").distinct().count(),
+            "pending_checks": pending_checks,
+            "curator_rows": curator_rows,
+        })
+    return render(request, "crm/home.html", ctx)
+
+
+@login_required
+def patients_board(request):
+    """Пациенты: сопровождения с этапом и суммой (макет v2)."""
+    cases = CuratorCase.objects.select_related("patient", "plan", "curator")
+    if request.user.role == CustomUser.Role.CURATOR:
+        cases = cases.filter(curator=request.user)
+    ctx = {
+        "title": "Пациенты",
+        "cases": cases.order_by("-created_at")[:100],
+        "is_manager": request.user.role in (CustomUser.Role.MANAGER, CustomUser.Role.ADMIN),
+    }
+    return render(request, "crm/patients_board.html", ctx)
+
+
+@login_required
+def doc_checks(request):
+    """Проверка документов (макет v2, реестр ТЗ п.12)."""
+    cases = CuratorCase.objects.filter(
+        status__in=[CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS]
+    ).select_related("patient", "plan", "curator").prefetch_related("document_checks")
+    if request.user.role == CustomUser.Role.CURATOR:
+        cases = cases.filter(curator=request.user)
+
+    rows = []
+    for c in cases:
+        rows.append({
+            "case": c,
+            "docs": docs_state(c),
+            "check": c.document_checks.first(),
+        })
+    return render(request, "crm/doc_checks.html", {
+        "title": "Проверка документов",
+        "rows": rows,
+        "can_check": request.user.role in (CustomUser.Role.MANAGER, CustomUser.Role.ADMIN),
+        "check_statuses": DocumentCheck.Status.choices,
+        "discrepancies": DocumentCheck.Discrepancy.choices,
+    })
+
+
+@manager_required
+def doc_check_create(request):
+    """Внести проверку; расхождение порождает задачу куратору (ТЗ п.18)."""
+    if request.method != "POST":
+        return redirect("crm:doc_checks")
+
+    case = get_object_or_404(CuratorCase, id=request.POST.get("case_id"))
+    status = request.POST.get("status", DocumentCheck.Status.NOT_CHECKED)
+    check = DocumentCheck.objects.create(
+        case=case,
+        status=status,
+        discrepancy_type=request.POST.get("discrepancy_type", "") if status == DocumentCheck.Status.DISCREPANCY else "",
+        comment=request.POST.get("comment", "").strip(),
+        checked_by=request.user,
+    )
+    log_action(
+        action=AuditLog.Action.CREATE, instance=check, field_name="status",
+        new_value=check.get_status_display(), comment="Проверка документов",
+    )
+
+    if status == DocumentCheck.Status.DISCREPANCY and case.curator:
+        Task.objects.create(
+            case=case,
+            task_type=Task.TaskType.DOCUMENTS,
+            description=f"Устранить расхождение: {check.get_discrepancy_type_display() or 'см. комментарий'}",
+            due_date=timezone.now() + timedelta(days=1),
+            assignee=case.curator,
+            priority=Task.Priority.HIGH,
+        )
+        messages.warning(request, "Расхождение зафиксировано, куратору создана задача.")
+    else:
+        messages.success(request, "Проверка сохранена.")
+    return redirect("crm:doc_checks")

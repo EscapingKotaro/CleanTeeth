@@ -521,7 +521,7 @@ def patient_create(request):
 
     if not last_name or not first_name or not phone:
         messages.error(request, "Фамилия, имя и телефон обязательны.")
-            return redirect(_next_url(request) or reverse("crm:patients_list"))
+        return redirect(_next_url(request) or reverse("crm:patients_list"))
 
     Patient.objects.create(
         last_name=last_name,
@@ -532,7 +532,7 @@ def patient_create(request):
         comment=request.POST.get("comment", "").strip(),
     )
     messages.success(request, f"Пациент {last_name} {first_name} создан.")
-        return redirect(_next_url(request) or reverse("crm:patients_list"))
+    return redirect(_next_url(request) or reverse("crm:patients_list"))
 
 @login_required
 def patient_update(request, patient_id):

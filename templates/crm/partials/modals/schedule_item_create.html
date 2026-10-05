@@ -5,7 +5,7 @@
         <div class="dg-panelhead"><h2>Пункт графика платежей</h2></div>
         <div style="display:grid;gap:12px;">
             <label class="dg-muted" style="display:grid;gap:6px;">Дата платежа <span style="color:var(--dg-warn);">*</span>
-                <input type="date" name="due_date" required>
+                <input type="date" name="due_date" value="{% now 'Y-m-d' %}" required>
             </label>
             <label class="dg-muted" style="display:grid;gap:6px;">Сумма, ₽ <span style="color:var(--dg-warn);">*</span>
                 <input type="number" step="0.01" name="planned_amount" required>

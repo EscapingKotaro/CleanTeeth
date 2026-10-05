@@ -1,0 +1,21 @@
+<div x-show="modal === 'presented'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:case_change_status' case.id %}"
+          class="dg-panel" style="max-width:440px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <input type="hidden" name="status" value="PRESENTED">
+        <div class="dg-panelhead"><h2>План презентован</h2></div>
+        <div style="display:grid;gap:12px;">
+            <label class="dg-muted" style="display:grid;gap:6px;">Дата презентации
+                <input type="date" name="presentation_date" value="{{ case.plan.presentation_date|date:'Y-m-d' }}" required>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Результат презентации <span style="color:var(--dg-warn);">*</span>
+                <textarea name="presentation_result" rows="3" required
+                          placeholder="Реакция пациента, вопросы, договорённости...">{{ case.plan.presentation_result }}</textarea>
+            </label>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary">Подтвердить</button>
+        </div>
+    </form>
+</div>

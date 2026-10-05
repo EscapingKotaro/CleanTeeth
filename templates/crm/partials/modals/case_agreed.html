@@ -1,0 +1,30 @@
+<div x-show="modal === 'agreed'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:case_change_status' case.id %}"
+          class="dg-panel" style="max-width:440px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <input type="hidden" name="status" value="AGREED">
+        <div class="dg-panelhead"><h2>План согласован</h2></div>
+        <p class="dg-muted">Пациент подтвердил готовность лечиться.</p>
+        <div style="display:grid;gap:12px;margin-top:12px;">
+            <label class="dg-muted" style="display:grid;gap:6px;">Согласованная сумма, ₽ <span style="color:var(--dg-warn);">*</span>
+                <input type="number" step="0.01" name="agreed_sum" value="{{ case.plan.agreed_sum }}" required>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Тип плана <span style="color:var(--dg-warn);">*</span>
+                <select name="plan_type" required>
+                    <option value="">Выберите тип</option>
+                    {% for value, label in plan_types %}
+                    <option value="{{ value }}" {% if case.plan.plan_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Дальнейший шаг
+                <input type="text" name="next_step" placeholder="Оформить документы, получить аванс...">
+                <span class="dg-muted" style="font-size:11px;">Если заполнено — будет создана задача (по умолчанию на завтра).</span>
+            </label>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary">Подтвердить</button>
+        </div>
+    </form>
+</div>

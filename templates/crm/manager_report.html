@@ -1,216 +1,193 @@
-{% extends "base.html" %}
+{% extends "base_v2.html" %}
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
-{% block content_full %}
-<div class="space-y-6">
+{% block content %}
 
-    <!-- Фильтры -->
-    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
-        <h1 class="text-2xl font-bold text-sky-900 mb-4">Отчёт руководителя</h1>
-        <form method="get" class="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
-            <div>
-                <label class="block text-xs font-medium text-sky-700 mb-1">С даты</label>
-                <input type="date" name="from" value="{{ start_date|date:'Y-m-d' }}"
-                       class="w-full border border-sky-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-sky-700 mb-1">По дату</label>
-                <input type="date" name="to" value="{{ end_date|date:'Y-m-d' }}"
-                       class="w-full border border-sky-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-sky-700 mb-1">Куратор</label>
-                <select name="curator" onchange="this.form.submit()"
-                        class="w-full border border-sky-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
-                    <option value="">Все</option>
-                    {% for u in curators %}
-                    <option value="{{ u.id }}" {% if curator_id == u.id|stringformat:"s" %}selected{% endif %}>
-                        {{ u.get_full_name|default:u.username }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-sky-700 mb-1">Статус сопровождения</label>
-                <select name="status" onchange="this.form.submit()"
-                        class="w-full border border-sky-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
-                    <option value="">Все</option>
-                    {% for value, label in statuses %}
-                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">
-                Показать
-            </button>
-        </form>
-       
-    </div>
-
-    <!-- СТРОКА 1: разбивка по статусам -->
+<div class="dg-heading">
     <div>
-       
-        <div class="grid grid-cols-4 xl:grid-cols-8 gap-3">
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Активных</p>
-                <p class="text-xl font-bold text-sky-900">{{ summary.active_now }}</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Передано</p>
-                <p class="text-xl font-bold text-sky-900">{{ summary.transferred }}</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Презентован</p>
-                <p class="text-xl font-bold text-blue-900">{{ summary.presented }}</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Решение</p>
-                <p class="text-xl font-bold text-yellow-700">{{ summary.in_decision }}</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Согласован</p>
-                <p class="text-xl font-bold text-green-700">{{ summary.agreed }}</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">В лечении</p>
-                <p class="text-xl font-bold text-purple-700">{{ summary.in_progress }}</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Завершено</p>
-                <p class="text-xl font-bold text-gray-700">{{ summary.completed }}</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-red-100 p-3 text-center">
-                <p class="text-xs text-red-500">Отказ</p>
-                <p class="text-xl font-bold text-red-700">{{ summary.lost }}</p>
-            </div>
-        </div>
+        <div class="dg-tag">Кураторский отдел</div>
+        <h1>Отчёт руководителя</h1>
+        <p class="dg-muted">Период: {{ start_date|date:"d.m.Y" }} — {{ end_date|date:"d.m.Y" }} включительно</p>
     </div>
-
-    <!-- СТРОКА 2: финансы + операционка -->
-    <div>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Сумма согласованных</p>
-                <p class="text-xl font-bold text-green-700">{{ summary.sum_agreed|floatformat:0 }} ₽</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Сумма оплат</p>
-                <p class="text-xl font-bold text-blue-700">{{ summary.sum_paid|floatformat:0 }} ₽</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-3 text-center">
-                <p class="text-xs text-sky-500">Остаток</p>
-                <p class="text-xl font-bold text-yellow-700">{{ summary.remainder|floatformat:0 }} ₽</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-red-100 p-3 text-center">
-                <p class="text-xs text-red-500">Просроченные задачи</p>
-                <p class="text-xl font-bold text-red-700">{{ summary.overdue_tasks }}</p>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-red-100 p-3 text-center">
-                <p class="text-xs text-red-500">Без след. действия</p>
-                <p class="text-xl font-bold text-red-700">{{ summary.no_next }}</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Разбивка по кураторам -->
-    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
-        <h2 class="text-lg font-bold text-sky-900 mb-4">По кураторам (факт за период)</h2>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-sky-100 text-sm">
-                <thead class="bg-sky-50">
-                    <tr>
-                        <th class="px-2 py-2 text-left text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Куратор</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">План</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">%</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">През., шт</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">През., ₽</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Согл., шт</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">К1, ₽</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Конв.</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Упущ.</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Аванс, шт</th>
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Авансы, ₽</th>
-                     
-                        <th class="px-2 py-2 text-right text-[10px] font-semibold text-sky-600 uppercase whitespace-nowrap">Ср. чек</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-sky-100">
-                    {% for r in curator_rows %}
-                    <tr>
-                        <td class="px-3 py-2 font-medium text-sky-900">{{ r.user.get_full_name|default:r.user.username }}</td>
-                        <td class="px-3 py-2 text-right text-sky-900">{{ r.plan_sum|floatformat:0 }}</td>
-                        <td class="px-3 py-2 text-right
-                            {% if r.fulfillment >= 100 %}text-green-700 font-semibold
-                            {% elif r.fulfillment >= 50 %}text-yellow-700
-                            {% else %}text-red-600{% endif %}">{{ r.fulfillment }}%</td>
-                        <td class="px-3 py-2 text-right text-sky-900">{{ r.pres_count }}</td>
-                        <td class="px-3 py-2 text-right text-sky-900">{{ r.pres_sum|floatformat:0 }}</td>
-                        <td class="px-3 py-2 text-right text-sky-900">{{ r.agr_count }}</td>
-                        <td class="px-3 py-2 text-right font-semibold text-green-700">{{ r.agr_sum|floatformat:0 }}</td>
-                        <td class="px-3 py-2 text-right text-sky-900">{{ r.conv }}%</td>
-                        <td class="px-3 py-2 text-right text-red-600">{{ r.lost_sum|floatformat:0 }}</td>
-                        <td class="px-3 py-2 text-right text-sky-900">{{ r.adv_count }}</td>
-                        <td class="px-3 py-2 text-right text-blue-700">{{ r.adv_sum|floatformat:0 }}</td>
-                       
-                        <td class="px-3 py-2 text-right text-sky-900">{{ r.avg_check|floatformat:0 }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Детализация сопровождений -->
-    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
-        <h2 class="text-lg font-bold text-sky-900 mb-4">Сопровождения за период</h2>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-sky-100 text-sm">
-                <thead class="bg-sky-50">
-                    <tr>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-sky-600 uppercase">Кейс</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-sky-600 uppercase">Пациент</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-sky-600 uppercase">Куратор</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-sky-600 uppercase">Статус</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold text-sky-600 uppercase">Согласовано</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold text-sky-600 uppercase">Оплачено</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold text-sky-600 uppercase">Остаток</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-sky-600 uppercase">След. задача</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-sky-100">
-                    {% for row in detail_rows %}
-                    <tr class="hover:bg-sky-50">
-                        <td class="px-3 py-2">
-                            <a href="{% url 'crm:case_detail' row.case.id %}" class="text-sky-600 hover:text-sky-900 font-medium">#{{ row.case.id }}</a>
-                        </td>
-                        <td class="px-3 py-2 text-sky-900">{{ row.case.patient.last_name }} {{ row.case.patient.first_name }}</td>
-                        <td class="px-3 py-2 text-sky-700">{{ row.case.curator.get_full_name|default:row.case.curator.username }}</td>
-                        <td class="px-3 py-2">
-                            <span class="px-2 py-0.5 rounded-full text-xs font-medium
-                                {% if row.case.status == 'LOST' %}bg-red-100 text-red-700
-                                {% elif row.case.status == 'COMPLETED' %}bg-gray-100 text-gray-700
-                                {% elif row.case.status == 'AGREED' %}bg-green-100 text-green-700
-                                {% else %}bg-sky-100 text-sky-700{% endif %}">
-                                {{ row.case.get_status_display }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-2 text-right text-sky-900">{{ row.case.plan.agreed_sum|floatformat:0 }}</td>
-                        <td class="px-3 py-2 text-right text-blue-700">{{ row.paid|floatformat:0 }}</td>
-                        <td class="px-3 py-2 text-right text-yellow-700">{{ row.remainder|floatformat:0 }}</td>
-                        <td class="px-3 py-2 text-sky-600">
-                            {% if row.next_task %}{{ row.next_task|date:"d.m.Y H:i" }}
-                            {% else %}<span class="text-red-600 font-medium">нет</span>{% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="12" class="px-3 py-8 text-center text-sky-500">Нет сопровождений за период</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-
-
 </div>
+
+<!-- Фильтры -->
+<section class="dg-panel">
+    <form method="get" class="dg-toolbar">
+        <label class="dg-muted" style="display:grid;gap:6px;">С даты
+            <input type="date" name="from" value="{{ start_date|date:'Y-m-d' }}">
+        </label>
+        <label class="dg-muted" style="display:grid;gap:6px;">По дату
+            <input type="date" name="to" value="{{ end_date|date:'Y-m-d' }}">
+        </label>
+        <label class="dg-muted" style="display:grid;gap:6px;">Куратор
+            <select name="curator" onchange="this.form.submit()">
+                <option value="">Все</option>
+                {% for u in curators %}
+                <option value="{{ u.id }}" {% if curator_id == u.id|stringformat:"s" %}selected{% endif %}>
+                    {{ u.get_full_name|default:u.username }}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="dg-muted" style="display:grid;gap:6px;">Статус сопровождения
+            <select name="status" onchange="this.form.submit()">
+                <option value="">Все</option>
+                {% for value, label in statuses %}
+                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn-primary">Показать</button>
+    </form>
+</section>
+
+<!-- СТРОКА 1: разбивка по статусам -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;margin-bottom:16px;">
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Активных</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;">{{ summary.active_now }}</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Передано</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;">{{ summary.transferred }}</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Презентован</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-blue);">{{ summary.presented }}</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Решение</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-warn);">{{ summary.in_decision }}</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Согласован</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-green);">{{ summary.agreed }}</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">В лечении</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-purple);">{{ summary.in_progress }}</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Завершено</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-gray);">{{ summary.completed }}</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Отказ</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-red);">{{ summary.lost }}</div>
+    </section>
+</div>
+
+<!-- СТРОКА 2: финансы + операционка -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;">
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Сумма согласованных</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-green);">{{ summary.sum_agreed|floatformat:0 }} ₽</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Сумма оплат</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-blue);">{{ summary.sum_paid|floatformat:0 }} ₽</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Остаток</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-warn);">{{ summary.remainder|floatformat:0 }} ₽</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Просроченные задачи</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-red);">{{ summary.overdue_tasks }}</div>
+    </section>
+    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
+        <p class="dg-muted">Без след. действия</p>
+        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-red);">{{ summary.no_next }}</div>
+    </section>
+</div>
+
+<!-- Разбивка по кураторам -->
+<section class="dg-panel">
+    <div class="dg-panelhead"><h2>По кураторам (факт за период)</h2></div>
+    <div style="overflow-x:auto;">
+        <table class="dg-table dg-table-sm">
+            <thead>
+                <tr>
+                    <th style="text-align:left;">Куратор</th>
+                    <th>План</th><th>%</th>
+                    <th>През., шт</th><th>През., ₽</th>
+                    <th>Согл., шт</th><th>К1, ₽</th>
+                    <th>Конв.</th><th>Упущ.</th>
+                    <th>Аванс, шт</th><th>Авансы, ₽</th>
+                    <th>Ср. чек</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in curator_rows %}
+                <tr>
+                    <td style="font-weight:500;">{{ r.user.get_full_name|default:r.user.username }}</td>
+                    <td>{{ r.plan_sum|floatformat:0 }}</td>
+                    <td style="{% if r.fulfillment >= 100 %}color:var(--dg-green);font-weight:600;{% elif r.fulfillment >= 50 %}color:var(--dg-warn);{% else %}color:var(--dg-red);{% endif %}">{{ r.fulfillment }}%</td>
+                    <td>{{ r.pres_count }}</td>
+                    <td>{{ r.pres_sum|floatformat:0 }}</td>
+                    <td>{{ r.agr_count }}</td>
+                    <td style="color:var(--dg-green);font-weight:600;">{{ r.agr_sum|floatformat:0 }}</td>
+                    <td>{{ r.conv }}%</td>
+                    <td style="color:var(--dg-red);">{{ r.lost_sum|floatformat:0 }}</td>
+                    <td>{{ r.adv_count }}</td>
+                    <td style="color:var(--dg-blue);">{{ r.adv_sum|floatformat:0 }}</td>
+                    <td>{{ r.avg_check|floatformat:0 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Детализация сопровождений -->
+<section class="dg-panel">
+    <div class="dg-panelhead"><h2>Сопровождения за период</h2></div>
+    <div style="overflow-x:auto;">
+        <table class="dg-table dg-table-sm">
+            <thead>
+                <tr>
+                    <th style="text-align:left;">Кейс</th>
+                    <th style="text-align:left;">Пациент</th>
+                    <th style="text-align:left;">Куратор</th>
+                    <th style="text-align:left;">Статус</th>
+                    <th>Согласовано</th>
+                    <th>Оплачено</th>
+                    <th>Остаток</th>
+                    <th style="text-align:left;">След. задача</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in detail_rows %}
+                <tr>
+                    <td><a href="{% url 'crm:case_detail' row.case.id %}" style="font-weight:500;">#{{ row.case.id }}</a></td>
+                    <td>{{ row.case.patient.last_name }} {{ row.case.patient.first_name }}</td>
+                    <td class="dg-muted">{{ row.case.curator.get_full_name|default:row.case.curator.username }}</td>
+                    <td>
+                        <span class="dg-badge
+                            {% if row.case.status == 'LOST' %}b-red
+                            {% elif row.case.status == 'COMPLETED' %}b-gray
+                            {% elif row.case.status == 'AGREED' %}b-green
+                            {% elif row.case.status == 'IN_PROGRESS' %}b-purple
+                            {% elif row.case.status == 'IN_DECISION' %}b-warn
+                            {% elif row.case.status == 'PRESENTED' %}b-blue{% endif %}">
+                            {{ row.case.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ row.case.plan.agreed_sum|floatformat:0 }}</td>
+                    <td style="color:var(--dg-blue);">{{ row.paid|floatformat:0 }}</td>
+                    <td style="color:var(--dg-warn);">{{ row.remainder|floatformat:0 }}</td>
+                    <td>
+                        {% if row.next_task %}{{ row.next_task|date:"d.m.Y H:i" }}
+                        {% else %}<span style="color:var(--dg-red);font-weight:500;">нет</span>{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="dg-muted" style="padding:24px 10px;text-align:center;">Нет сопровождений за период</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
 {% endblock %}

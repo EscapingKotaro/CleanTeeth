@@ -1,152 +1,106 @@
-{% extends "base.html" %}
+{% extends "base_v2.html" %}
 
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
-{% block content_full %}
-<div class="space-y-6"
-     x-data="{
-        modal: null,
-        editDoctor: {},
-        deleteTarget: { id: null, name: '' },
-        openEdit(id) { this.editDoctor = doctorsData[id]; this.modal = 'edit'; },
-        openDelete(id, name) { this.deleteTarget = { id, name }; this.modal = 'delete'; }
-     }">
+{% block content %}
+<div x-data="{
+    modal: null,
+    editDoctor: {},
+    deleteTarget: { id: null, name: '' },
+    openEdit(id) { this.editDoctor = doctorsData[id]; this.modal = 'edit'; },
+    openDelete(id, name) { this.deleteTarget = { id, name }; this.modal = 'delete'; }
+ }">
 
-    <!-- Заголовок + кнопка создания -->
-    <div class="bg-white rounded-xl shadow-sm border border-sky-100 p-6">
-        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <div>
-                <h1 class="text-2xl font-bold text-sky-900">Врачи</h1>
-                <p class="text-sm text-sky-600 mt-1">Всего: {{ total_count }}</p>
-            </div>
-            <button @click="modal = 'create'"
-                    class="inline-flex items-center px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition text-sm font-medium shadow-sm">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                </svg>
-                Добавить врача
-            </button>
+    <div class="dg-heading">
+        <div>
+            <div class="dg-tag">Справочник</div>
+            <h1>Врачи</h1>
+            <p class="dg-muted">Всего: {{ total_count }}</p>
         </div>
+        <button type="button" @click="modal = 'create'" class="btn-primary">
+            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Добавить врача
+        </button>
+    </div>
 
+    <section class="dg-panel">
         <!-- Поиск и фильтры -->
-        <form method="get" class="mt-5 flex flex-col md:flex-row gap-3">
-            <input type="text" name="q" value="{{ query }}"
-                   placeholder="Поиск по ФИО, телефону, email..."
-                   class="flex-1 border border-sky-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
-
-            <select name="direction" class="border border-sky-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
+        <form method="get" class="dg-toolbar" style="margin-bottom:16px;">
+            <input type="text" name="q" value="{{ query }}" placeholder="Поиск по ФИО, телефону, email..." style="flex:1;min-width:220px;">
+            <select name="direction" onchange="this.form.submit()">
                 <option value="">Все направления</option>
                 {% for value, label in directions %}
                 <option value="{{ value }}" {% if direction_filter == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
-
-            <select name="active" class="border border-sky-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
+            <select name="active" onchange="this.form.submit()">
                 <option value="">Все статусы</option>
                 <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Активные</option>
                 <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Неактивные</option>
             </select>
-
-            <button type="submit" class="px-4 py-2 bg-sky-100 text-sky-800 rounded-lg text-sm font-medium hover:bg-sky-200 transition">
-                Найти
-            </button>
+            <button type="submit">Найти</button>
             {% if query or direction_filter or status_filter %}
-            <a href="{% url 'crm:doctors_list' %}" class="px-4 py-2 text-sky-600 text-sm font-medium hover:text-sky-800 flex items-center">
-                Сбросить
-            </a>
+            <a href="{% url 'crm:doctors_list' %}" class="dg-muted" style="text-decoration:none;">Сбросить</a>
             {% endif %}
         </form>
-    </div>
 
-    <!-- Таблица -->
-    <div class="bg-white rounded-xl shadow-sm border border-sky-100 overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-sky-100">
-                <thead class="bg-sky-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-sky-600 uppercase tracking-wide">ФИО</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-sky-600 uppercase tracking-wide">Направление</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-sky-600 uppercase tracking-wide">Контакты</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-sky-600 uppercase tracking-wide">Статус</th>
-                        <th class="px-6 py-3 text-right text-xs font-semibold text-sky-600 uppercase tracking-wide">Действия</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-sky-100">
-                    {% for doctor in page_obj %}
-                    <tr class="hover:bg-sky-50 transition">
-                        <td class="px-6 py-4">
-                            <div class="text-sm font-medium text-sky-900">
-                                {{ doctor.last_name }} {{ doctor.first_name }} {{ doctor.middle_name }}
-                            </div>
-                            {% if doctor.ident_doctor_id %}
-                            <div class="text-xs text-sky-500">iDent: {{ doctor.ident_doctor_id }}</div>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4">
-                            {% if doctor.direction %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800">
-                                {{ doctor.get_direction_display }}
-                            </span>
-                            {% else %}
-                            <span class="text-sm text-sky-400">—</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4">
-                            <div class="text-sm text-sky-900">{{ doctor.phone|default:"—" }}</div>
-                            <div class="text-xs text-sky-500">{{ doctor.email|default:"" }}</div>
-                        </td>
-                        <td class="px-6 py-4">
-                            {% if doctor.is_active %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Активен</span>
-                            {% else %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Неактивен</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 text-right whitespace-nowrap">
-                            <button @click="openEdit({{ doctor.id }})"
-                                    class="text-sm text-sky-600 hover:text-sky-900 font-medium mr-3">
-                                Изменить
-                            </button>
-                            <button @click="openDelete({{ doctor.id }}, '{{ doctor.last_name }} {{ doctor.first_name }}')"
-                                    class="text-sm text-red-600 hover:text-red-800 font-medium">
-                                Удалить
-                            </button>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5" class="px-6 py-12 text-center text-sky-600">
-                            Врачи не найдены. Попробуйте изменить поиск или добавьте нового.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+        <!-- Таблица -->
+        <table class="dg-table">
+            <thead>
+                <tr><th>ФИО</th><th>Направление</th><th>Контакты</th><th>Статус</th><th style="text-align:right;">Действия</th></tr>
+            </thead>
+            <tbody>
+                {% for doctor in page_obj %}
+                <tr>
+                    <td>
+                        <div style="font-weight:500;">{{ doctor.last_name }} {{ doctor.first_name }} {{ doctor.middle_name }}</div>
+                        {% if doctor.ident_doctor_id %}<div class="dg-muted">iDent: {{ doctor.ident_doctor_id }}</div>{% endif %}
+                    </td>
+                    <td>
+                        {% if doctor.direction %}
+                        <span class="dg-badge b-blue">{{ doctor.get_direction_display }}</span>
+                        {% else %}<span class="dg-muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        <div>{{ doctor.phone|default:"—" }}</div>
+                        <div class="dg-muted">{{ doctor.email|default:"" }}</div>
+                    </td>
+                    <td>
+                        {% if doctor.is_active %}
+                        <span class="dg-badge b-green">Активен</span>
+                        {% else %}
+                        <span class="dg-badge b-gray">Неактивен</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right;white-space:nowrap;">
+                        <button type="button" @click="openEdit({{ doctor.id }})" style="padding:6px 10px;">Изменить</button>
+                        <button type="button" @click="openDelete({{ doctor.id }}, '{{ doctor.last_name }} {{ doctor.first_name }}')"
+                                style="padding:6px 10px;border-color:var(--dg-warn);color:var(--dg-warn);">Удалить</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="dg-muted" style="padding:24px 10px;text-align:center;">Врачи не найдены. Попробуйте изменить поиск или добавьте нового.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
 
     <!-- Пагинация -->
     {% if page_obj.has_other_pages %}
-    <nav class="flex items-center justify-between bg-white rounded-xl shadow-sm border border-sky-100 px-6 py-4">
-        <div class="text-sm text-sky-600">
-            Показано {{ page_obj.start_index }}–{{ page_obj.end_index }} из {{ total_count }}
-        </div>
-        <div class="flex items-center gap-1">
+    <section class="dg-panel dg-pager">
+        <span class="dg-muted">Показано {{ page_obj.start_index }}–{{ page_obj.end_index }} из {{ total_count }}</span>
+        <div class="dg-pages">
             {% if page_obj.has_previous %}
-            <a href="?page=1&{{ search_params }}" class="px-3 py-1.5 rounded-lg border border-sky-200 text-sky-700 text-sm hover:bg-sky-50">«</a>
-            <a href="?page={{ page_obj.previous_page_number }}&{{ search_params }}" class="px-3 py-1.5 rounded-lg border border-sky-200 text-sky-700 text-sm hover:bg-sky-50">‹</a>
+            <a href="?page=1&{{ search_params }}" style="padding:6px 10px;">«</a>
+            <a href="?page={{ page_obj.previous_page_number }}&{{ search_params }}" style="padding:6px 10px;">‹</a>
             {% endif %}
-
-            <span class="px-4 py-1.5 text-sm text-sky-900 font-medium">
-                Стр. {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}
-            </span>
-
+            <span style="font-size:13px;">Стр. {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}&{{ search_params }}" class="px-3 py-1.5 rounded-lg border border-sky-200 text-sky-700 text-sm hover:bg-sky-50">›</a>
-            <a href="?page={{ page_obj.paginator.num_pages }}&{{ search_params }}" class="px-3 py-1.5 rounded-lg border border-sky-200 text-sky-700 text-sm hover:bg-sky-50">»</a>
+            <a href="?page={{ page_obj.next_page_number }}&{{ search_params }}" style="padding:6px 10px;">›</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&{{ search_params }}" style="padding:6px 10px;">»</a>
             {% endif %}
         </div>
-    </nav>
+    </section>
     {% endif %}
 
     <!-- Данные врачей для модалки редактирования -->
@@ -164,156 +118,128 @@
                 is_active: {{ doctor.is_active|yesno:"true,false" }},
                 ident_doctor_id: "{{ doctor.ident_doctor_id|default:''|escapejs }}",
                 comment: "{{ doctor.comment|escapejs }}"
-            },
+            }{% if not forloop.last %},{% endif %}
             {% endfor %}
         };
     </script>
 
-    <!-- Общий бэкдроп -->
-    <div x-show="modal" x-cloak class="fixed inset-0 z-40 bg-sky-900 bg-opacity-50" @click="modal = null"></div>
+    <!-- Бэкдроп -->
+    <div x-show="modal" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
 
-    <!-- ==================== МОДАЛКА: СОЗДАТЬ ==================== -->
-    <div x-show="modal === 'create'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <form method="post" action="{% url 'crm:doctor_create' %}"
-              class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" @click.stop>
+    <!-- МОДАЛКА: СОЗДАТЬ -->
+    <div x-show="modal === 'create'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" action="{% url 'crm:doctor_create' %}" class="dg-panel"
+              style="max-width:560px;width:100%;margin:0;background:var(--dg-solid);max-height:90vh;overflow-y:auto;" @click.stop>
             {% csrf_token %}
-            <h3 class="text-lg font-bold text-sky-900 mb-4">Новый врач</h3>
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Фамилия <span class="text-red-500">*</span></label>
-                        <input type="text" name="last_name" required class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Имя <span class="text-red-500">*</span></label>
-                        <input type="text" name="first_name" required class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Отчество</label>
-                        <input type="text" name="middle_name" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
+            <div class="dg-panelhead"><h2>Новый врач</h2></div>
+            <div style="display:grid;gap:12px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <label class="dg-muted" style="display:grid;gap:6px;">Фамилия <span style="color:var(--dg-warn);">*</span>
+                        <input type="text" name="last_name" required>
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Имя <span style="color:var(--dg-warn);">*</span>
+                        <input type="text" name="first_name" required>
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Отчество
+                        <input type="text" name="middle_name">
+                    </label>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Телефон</label>
-                        <input type="tel" name="phone" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Email</label>
-                        <input type="email" name="email" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <label class="dg-muted" style="display:grid;gap:6px;">Телефон
+                        <input type="tel" name="phone">
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Email
+                        <input type="email" name="email">
+                    </label>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-sky-700 mb-1">Направление лечения</label>
-                    <select name="direction" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                <label class="dg-muted" style="display:grid;gap:6px;">Направление лечения
+                    <select name="direction">
                         <option value="">Не выбрано</option>
                         {% for value, label in directions %}
                         <option value="{{ value }}">{{ label }}</option>
                         {% endfor %}
                     </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-sky-700 mb-1">ID врача в iDent</label>
-                    <input type="text" name="ident_doctor_id" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-sky-700 mb-1">Комментарий</label>
-                    <textarea name="comment" rows="2" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500"></textarea>
-                </div>
-                <label class="flex items-center gap-2">
-                    <input type="checkbox" name="is_active" checked class="h-4 w-4 text-sky-600 border-sky-300 rounded focus:ring-sky-500">
-                    <span class="text-sm text-sky-900">Активен в клинике</span>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">ID врача в iDent
+                    <input type="text" name="ident_doctor_id">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                    <textarea name="comment" rows="2"></textarea>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" name="is_active" checked class="dg-check">
+                    <span>Активен в клинике</span>
                 </label>
             </div>
-            <div class="flex justify-end gap-2 mt-6">
-                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
-                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Добавить</button>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Добавить</button>
             </div>
         </form>
     </div>
 
-    <!-- ==================== МОДАЛКА: РЕДАКТИРОВАТЬ ==================== -->
-    <div x-show="modal === 'edit'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <form method="post" :action="'{% url 'crm:doctors_list' %}' + editDoctor.id + '/update/'"
-              class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" @click.stop>
+    <!-- МОДАЛКА: РЕДАКТИРОВАТЬ -->
+    <div x-show="modal === 'edit'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" :action="'{% url 'crm:doctors_list' %}' + editDoctor.id + '/update/'" class="dg-panel"
+              style="max-width:560px;width:100%;margin:0;background:var(--dg-solid);max-height:90vh;overflow-y:auto;" @click.stop>
             {% csrf_token %}
-            <h3 class="text-lg font-bold text-sky-900 mb-4">Редактировать врача</h3>
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Фамилия <span class="text-red-500">*</span></label>
-                        <input type="text" name="last_name" x-model="editDoctor.last_name" required class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Имя <span class="text-red-500">*</span></label>
-                        <input type="text" name="first_name" x-model="editDoctor.first_name" required class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Отчество</label>
-                        <input type="text" name="middle_name" x-model="editDoctor.middle_name" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
+            <div class="dg-panelhead"><h2>Редактировать врача</h2></div>
+            <div style="display:grid;gap:12px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <label class="dg-muted" style="display:grid;gap:6px;">Фамилия <span style="color:var(--dg-warn);">*</span>
+                        <input type="text" name="last_name" x-model="editDoctor.last_name" required>
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Имя <span style="color:var(--dg-warn);">*</span>
+                        <input type="text" name="first_name" x-model="editDoctor.first_name" required>
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Отчество
+                        <input type="text" name="middle_name" x-model="editDoctor.middle_name">
+                    </label>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Телефон</label>
-                        <input type="tel" name="phone" x-model="editDoctor.phone" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-sky-700 mb-1">Email</label>
-                        <input type="email" name="email" x-model="editDoctor.email" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                    </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <label class="dg-muted" style="display:grid;gap:6px;">Телефон
+                        <input type="tel" name="phone" x-model="editDoctor.phone">
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Email
+                        <input type="email" name="email" x-model="editDoctor.email">
+                    </label>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-sky-700 mb-1">Направление лечения</label>
-                    <select name="direction" x-model="editDoctor.direction" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
+                <label class="dg-muted" style="display:grid;gap:6px;">Направление лечения
+                    <select name="direction" x-model="editDoctor.direction">
                         <option value="">Не выбрано</option>
                         {% for value, label in directions %}
                         <option value="{{ value }}">{{ label }}</option>
                         {% endfor %}
                     </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-sky-700 mb-1">ID врача в iDent</label>
-                    <input type="text" name="ident_doctor_id" x-model="editDoctor.ident_doctor_id" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-sky-700 mb-1">Комментарий</label>
-                    <textarea name="comment" rows="2" x-model="editDoctor.comment" class="w-full border border-sky-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-sky-500"></textarea>
-                </div>
-                <label class="flex items-center gap-2">
-                    <input type="checkbox" name="is_active" x-model="editDoctor.is_active" class="h-4 w-4 text-sky-600 border-sky-300 rounded focus:ring-sky-500">
-                    <span class="text-sm text-sky-900">Активен в клинике</span>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">ID врача в iDent
+                    <input type="text" name="ident_doctor_id" x-model="editDoctor.ident_doctor_id">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                    <textarea name="comment" rows="2" x-model="editDoctor.comment"></textarea>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" name="is_active" x-model="editDoctor.is_active" class="dg-check">
+                    <span>Активен в клинике</span>
                 </label>
             </div>
-            <div class="flex justify-end gap-2 mt-6">
-                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
-                <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Сохранить</button>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Сохранить</button>
             </div>
         </form>
     </div>
 
-    <!-- ==================== МОДАЛКА: УДАЛЕНИЕ ==================== -->
-    <div x-show="modal === 'delete'" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <form method="post" :action="'{% url 'crm:doctors_list' %}' + deleteTarget.id + '/delete/'"
-              class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" @click.stop>
+    <!-- МОДАЛКА: УДАЛЕНИЕ -->
+    <div x-show="modal === 'delete'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" :action="'{% url 'crm:doctors_list' %}' + deleteTarget.id + '/delete/'" class="dg-panel"
+              style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
             {% csrf_token %}
-            <div class="flex items-start gap-3 mb-4">
-                <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                    <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-sky-900">Удалить врача?</h3>
-                    <p class="text-sm text-sky-600 mt-1">
-                        «<span x-text="deleteTarget.name"></span>» будет удалён.
-                        Если у врача есть планы лечения, он будет деактивирован вместо удаления.
-                    </p>
-                </div>
-            </div>
-            <div class="flex justify-end gap-2">
-                <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
-                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Удалить</button>
+            <div class="dg-panelhead"><h2>Удалить врача?</h2></div>
+            <p>«<span x-text="deleteTarget.name"></span>» будет удалён. Если у врача есть планы лечения, он будет деактивирован вместо удаления.</p>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" style="border-color:var(--dg-warn);color:var(--dg-warn);">Удалить</button>
             </div>
         </form>
     </div>

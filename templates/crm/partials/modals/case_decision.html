@@ -1,0 +1,33 @@
+<div x-show="modal === 'decision'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:case_change_status' case.id %}"
+          class="dg-panel" style="max-width:560px;width:100%;margin:0;background:var(--dg-solid);max-height:90vh;overflow-y:auto;" @click.stop>
+        {% csrf_token %}
+        <input type="hidden" name="status" value="IN_DECISION">
+        <div class="dg-panelhead"><h2>Решение в работе</h2></div>
+        <p class="dg-muted">Все поля обязательны. Следующее действие будет создано как задача автоматически.</p>
+        <div style="display:grid;gap:12px;margin-top:12px;">
+            <label class="dg-muted" style="display:grid;gap:6px;">Причина <span style="color:var(--dg-warn);">*</span>
+                <input type="text" name="decision_reason" required placeholder="Думает, ждёт консультацию, сравнивает цены...">
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Комментарий <span style="color:var(--dg-warn);">*</span>
+                <textarea name="decision_comment" rows="2" required></textarea>
+            </label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Следующее действие
+                    <select name="next_action_type">
+                        {% for value, label in task_types %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Дата и время <span style="color:var(--dg-warn);">*</span>
+                    <input type="datetime-local" name="next_action_date" required>
+                </label>
+            </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary">Подтвердить</button>
+        </div>
+    </form>
+</div>

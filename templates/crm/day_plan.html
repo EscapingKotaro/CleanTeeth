@@ -25,18 +25,15 @@
 
         <!-- Сетка расписания -->
         <div class="dp-schedule">
-            <div class="dp-hours">
-                {% for slot in slots %}<span>{{ slot.time }}</span>{% endfor %}
-            </div>
-            <div class="dp-grid">
-                {% for slot in slots %}
-                <div class="dp-slot"
-                     :class="{ 'dp-dragover': dragOver === '{{ slot.time }}' }"
-                     @dragenter.prevent="dragOver = '{{ slot.time }}'"
-                     @dragover.prevent="dragOver = '{{ slot.time }}'"
-                     @dragleave="if (dragOver === '{{ slot.time }}') dragOver = null"
-                     @drop.prevent="dragOver = null; dropTask('{{ slot.time }}')">
-                    {% for task in slot.tasks %}
+            {% for slot in slots %}
+            <span class="dp-hour">{{ slot.time }}</span>
+            <div class="dp-slot"
+                 :class="{ 'dp-dragover': dragOver === '{{ slot.time }}' }"
+                 @dragenter.prevent="dragOver = '{{ slot.time }}'"
+                 @dragover.prevent="dragOver = '{{ slot.time }}'"
+                 @dragleave="if (dragOver === '{{ slot.time }}') dragOver = null"
+                 @drop.prevent="dragOver = null; dropTask('{{ slot.time }}')">
+                {% for task in slot.tasks %}
                     <div class="dp-event {% if task.is_overdue %}dp-overdue{% endif %}{% if task.status == 'DONE' %}dp-completed{% endif %}"
                          draggable="true"
                          x-show="filter === 'all' || (filter === 'done') === {% if task.status == 'DONE' %}true{% else %}false{% endif %}"
@@ -55,10 +52,9 @@
                             </span>
                         </div>
                     </div>
-                    {% endfor %}
-                </div>
                 {% endfor %}
             </div>
+            {% endfor %}
         </div>
 
         <!-- Задачи вне сетки 9–18 -->

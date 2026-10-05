@@ -1,0 +1,16 @@
+<div x-show="modal === 'in_progress'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:case_change_status' case.id %}"
+          class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <input type="hidden" name="status" value="IN_PROGRESS">
+        <div class="dg-panelhead"><h2>Лечение в процессе</h2></div>
+        <p class="dg-muted">Обязательно укажите следующий визит или контрольную дату. Задача контроля создастся автоматически.</p>
+        <label class="dg-muted" style="display:grid;gap:6px;margin-top:12px;">Следующий визит / контрольная дата <span style="color:var(--dg-warn);">*</span>
+            <input type="date" name="next_control_date" required>
+        </label>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary">Подтвердить</button>
+        </div>
+    </form>
+</div>

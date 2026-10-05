@@ -432,9 +432,7 @@ input:focus, select:focus, textarea:focus {
 
 /* ===== План дня: расписание 9:00–18:00, шаг 30 мин ===== */
 .dp-schedule { display: grid; grid-template-columns: 54px minmax(0,1fr); margin-top: 20px; }
-.dp-hours { display: grid; grid-template-rows: repeat(18, 48px); font-size: 11px; color: var(--dg-muted); }
-.dp-hours span { padding-top: 4px; font-variant-numeric: tabular-nums; }
-.dp-grid { display: grid; grid-template-rows: repeat(18, minmax(48px, auto)); border-left: 1px solid var(--dg-line); border-radius: 7px; }
+
 .dp-slot { border-bottom: 1px solid var(--dg-line); padding: 2px 10px; display: flex; flex-direction: column; gap: 4px; }
 .dp-slot.dp-dragover { background: rgba(90,125,152,.08); }
 
@@ -488,3 +486,66 @@ input:focus, select:focus, textarea:focus {
 .dg-stage { display: grid; grid-template-columns: 115px 1fr 44px; align-items: center; gap: 10px; margin-top: 14px; font-size: 12px; }
 .dg-stage div { height: 8px; border-radius: 3px; background: var(--dg-soft); }
 .dg-stage span { display: block; height: 100%; border-radius: 3px; background: var(--dg-main); }
+
+/* ===== План дня: расписание. Время и слот — ОДНА строка грида ===== */
+.dp-schedule {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  margin-top: 20px;
+}
+
+.dp-hour {
+  padding: 5px 10px 0 0;
+  font-size: 11px;
+  color: var(--dg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-slot {
+  min-height: 48px;
+  border-left: 1px solid var(--dg-line);
+  border-bottom: 1px solid var(--dg-line);
+  padding: 3px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dp-slot:last-child {
+  border-bottom: 0;
+}
+
+.dp-slot.dp-dragover {
+  background: rgba(90,125,152,.08);
+}
+
+
+/* Цвета статусов */
+:root, [data-theme="light"] { --dg-blue:#2b6cb0; --dg-purple:#6b4fa0; --dg-gray:#5b6470; --dg-red:#b3362f; }
+[data-theme="dark"] { --dg-blue:#9cc4f0; --dg-purple:#c3b1e8; --dg-gray:#a7afb9; --dg-red:#ff8784; }
+
+.dg-badge.b-blue   { color: var(--dg-blue);   background: color-mix(in srgb, var(--dg-blue) 14%, transparent); }
+.dg-badge.b-purple { color: var(--dg-purple); background: color-mix(in srgb, var(--dg-purple) 15%, transparent); }
+.dg-badge.b-gray   { color: var(--dg-gray);   background: color-mix(in srgb, var(--dg-gray) 16%, transparent); }
+.dg-badge.b-green  { color: var(--dg-green);  background: color-mix(in srgb, var(--dg-green) 14%, transparent); }
+.dg-badge.b-warn   { color: var(--dg-warn);   background: color-mix(in srgb, var(--dg-warn) 14%, transparent); }
+.dg-badge.b-red    { color: var(--dg-red);    background: color-mix(in srgb, var(--dg-red) 14%, transparent); }
+
+/* Кликабельные строки таблиц */
+.dg-table tbody tr.dg-clickable { cursor: pointer; }
+.dg-table tbody tr.dg-clickable:hover { background: rgba(127,145,166,.07); }
+
+/* Тулбар фильтров */
+.dg-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* Пагинация */
+.dg-pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dg-pager .dg-pages { display: flex; gap: 6px; align-items: center; }
+.dg-pager a { text-decoration: none; }
+
+/* Компактная таблица для широких отчётов */
+.dg-table.dg-table-sm th,
+.dg-table.dg-table-sm td {
+  padding: 8px 6px;
+  font-size: 12px;
+}

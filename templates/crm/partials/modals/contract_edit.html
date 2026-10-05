@@ -1,0 +1,29 @@
+<div x-show="modal === 'edit_contract'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" :action="'{% url 'crm:contract_update' 0 %}'.replace('/0/', '/' + editContract.id + '/')"
+          class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <div class="dg-panelhead"><h2>Редактировать договор</h2></div>
+        <div style="display:grid;gap:12px;">
+            <label class="dg-muted" style="display:grid;gap:6px;">Номер договора
+                <input type="text" name="number" x-model="editContract.number" required>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Дата договора
+                <input type="date" name="date" x-model="editContract.date" required>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Статус
+                <select name="status" x-model="editContract.status">
+                    <option value="DRAFT">Черновик</option>
+                    <option value="ACTIVE">Действующий</option>
+                    <option value="CLOSED">Закрыт</option>
+                </select>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                <textarea name="comment" rows="2" x-model="editContract.comment"></textarea>
+            </label>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary">Сохранить</button>
+        </div>
+    </form>
+</div>

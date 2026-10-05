@@ -1,0 +1,13 @@
+<div x-show="modal === 'complete'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:case_change_status' case.id %}"
+          class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <input type="hidden" name="status" value="COMPLETED">
+        <div class="dg-panelhead"><h2>Завершить лечение?</h2></div>
+        <p class="dg-muted">Кейс будет закрыт, все активные задачи отменены. Пациент останется в базе и в будущем сможет получить новый план.</p>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary" style="background:var(--dg-green);border-color:var(--dg-green);">Завершить кейс</button>
+        </div>
+    </form>
+</div>

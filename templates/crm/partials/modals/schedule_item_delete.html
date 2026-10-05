@@ -1,0 +1,12 @@
+<div x-show="modal === 'delete_schedule_item'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" :action="'{% url 'crm:schedule_item_delete' 0 %}'.replace('/0/', '/' + deleteItem.id + '/')"
+          class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <div class="dg-panelhead"><h2>Удалить пункт графика?</h2></div>
+        <p>Пункт «<span x-text="deleteItem.label"></span>» будет удалён. Действие попадёт в журнал аудита.</p>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" style="border-color:var(--dg-warn);color:var(--dg-warn);">Удалить</button>
+        </div>
+    </form>
+</div>

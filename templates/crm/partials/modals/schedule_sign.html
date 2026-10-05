@@ -1,0 +1,12 @@
+<div x-show="modal === 'sign_schedule'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:schedule_sign' case.plan.id %}"
+          class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <div class="dg-panelhead"><h2>Подписать график платежей?</h2></div>
+        <p class="dg-muted">Отметка «график подписан» влияет на признак «план готов к работе» для плана с авансом.</p>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary" style="background:var(--dg-green);border-color:var(--dg-green);">Подписать</button>
+        </div>
+    </form>
+</div>

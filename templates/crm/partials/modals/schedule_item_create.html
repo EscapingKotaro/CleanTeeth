@@ -1,0 +1,27 @@
+<div x-show="modal === 'schedule_item'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:schedule_item_create' case.plan.id %}"
+          class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <div class="dg-panelhead"><h2>Пункт графика платежей</h2></div>
+        <div style="display:grid;gap:12px;">
+            <label class="dg-muted" style="display:grid;gap:6px;">Дата платежа <span style="color:var(--dg-warn);">*</span>
+                <input type="date" name="due_date" required>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Сумма, ₽ <span style="color:var(--dg-warn);">*</span>
+                <input type="number" step="0.01" name="planned_amount" required>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" name="is_advance" class="dg-check"
+                       {% if not case.plan.schedule.all and case.plan.plan_type == 'ADVANCE' %}checked{% endif %}>
+                <span>Это аванс (первый пункт графика)</span>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                <input type="text" name="comment">
+            </label>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary">Добавить</button>
+        </div>
+    </form>
+</div>

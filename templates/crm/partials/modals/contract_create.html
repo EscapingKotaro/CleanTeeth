@@ -1,0 +1,29 @@
+<div x-show="modal === 'create_contract'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:contract_create' case.patient.id %}"
+          class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+        {% csrf_token %}
+        <div class="dg-panelhead"><h2>Новый договор</h2></div>
+        <div style="display:grid;gap:12px;">
+            <label class="dg-muted" style="display:grid;gap:6px;">Номер договора <span style="color:var(--dg-warn);">*</span>
+                <input type="text" name="number" required>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Дата договора <span style="color:var(--dg-warn);">*</span>
+                <input type="date" name="date" required value="{% now 'Y-m-d' %}">
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Статус
+                <select name="status">
+                    <option value="DRAFT">Черновик</option>
+                    <option value="ACTIVE" selected>Действующий</option>
+                    <option value="CLOSED">Закрыт</option>
+                </select>
+            </label>
+            <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                <textarea name="comment" rows="2"></textarea>
+            </label>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary">Создать</button>
+        </div>
+    </form>
+</div>

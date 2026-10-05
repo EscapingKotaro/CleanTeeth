@@ -1,0 +1,40 @@
+<div x-show="modal === 'edit_plan'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+    <form method="post" action="{% url 'crm:plan_update' case.plan.id %}"
+          class="dg-panel" style="max-width:560px;width:100%;margin:0;background:var(--dg-solid);max-height:90vh;overflow-y:auto;" @click.stop>
+        {% csrf_token %}
+        <div class="dg-panelhead"><h2>Редактировать план лечения</h2></div>
+        <div style="display:grid;gap:12px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Первоначальная, ₽
+                    <input type="number" step="0.01" name="initial_sum" value="{{ case.plan.initial_sum }}">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Презентация, ₽
+                    <input type="number" step="0.01" name="presentation_sum" value="{{ case.plan.presentation_sum }}">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Согласованная, ₽
+                    <input type="number" step="0.01" name="agreed_sum" value="{{ case.plan.agreed_sum }}">
+                </label>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Дата презентации
+                    <input type="date" name="presentation_date" value="{{ case.plan.presentation_date|date:'Y-m-d' }}">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Дата согласования
+                    <input type="date" name="agreement_date" value="{{ case.plan.agreement_date|date:'Y-m-d' }}">
+                </label>
+            </div>
+            <label class="dg-muted" style="display:grid;gap:6px;">Тип плана
+                <select name="plan_type">
+                    <option value="">Не выбран</option>
+                    {% for value, label in plan_types %}
+                    <option value="{{ value }}" {% if case.plan.plan_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" @click="modal = null">Отмена</button>
+            <button type="submit" class="btn-primary">Сохранить</button>
+        </div>
+    </form>
+</div>

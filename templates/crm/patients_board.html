@@ -2,35 +2,88 @@
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div class="dg-heading">
-    <div>
-        <div class="dg-tag">КУРАТОРСКИЙ ОТДЕЛ</div>
-        <h1>Пациенты</h1>
-    </div>
-    {% if is_manager %}
-    <a href="{% url 'crm:patients_list' %}" style="text-decoration:none;">Управление базой</a>
-    {% endif %}
-</div>
+<div x-data="{ modal: null }">
 
-<section class="dg-panel">
-    <table class="dg-table">
-        <thead>
-            <tr><th>Пациент</th>{% if is_manager %}<th>Куратор</th>{% endif %}<th>Этап</th><th>Сумма</th></tr>
-        </thead>
-        <tbody>
-            {% for case in cases %}
-            <tr style="cursor:pointer;" onclick="window.location.href='{% url 'crm:case_detail' case.id %}'">
-                <td>{{ case.patient.last_name }} {{ case.patient.first_name }}</td>
-                {% if is_manager %}<td class="dg-muted">{{ case.curator.get_full_name|default:case.curator.username }}</td>{% endif %}
-                <td>
-                    <span class="dg-badge {% if case.status == 'LOST' %}dg-warn{% endif %}">{{ case.get_status_display }}</span>
-                </td>
-                <td>{{ case.plan.agreed_sum|floatformat:0 }} ₽</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="4" class="dg-muted" style="padding:20px 10px;">Сопровождений нет</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</section>
+    <div class="dg-heading">
+        <div>
+            <div class="dg-tag">Кураторский отдел</div>
+            <h1>Пациенты</h1>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <a href="{% url 'crm:cases_list' %}" style="text-decoration:none;">План и кейс</a>
+            {% if is_manager %}
+            <a href="{% url 'crm:patients_list' %}" style="text-decoration:none;">Управление базой</a>
+            {% endif %}
+            <button type="button" @click="modal = 'create'" class="btn-primary">
+                <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                Добавить пациента
+            </button>
+        </div>
+    </div>
+
+    <section class="dg-panel">
+        <table class="dg-table">
+            <thead>
+                <tr><th>Пациент</th>{% if is_manager %}<th>Куратор</th>{% endif %}<th>Этап</th><th>Сумма</th></tr>
+            </thead>
+            <tbody>
+                {% for case in cases %}
+                <tr style="cursor:pointer;" onclick="window.location.href='{% url 'crm:case_detail' case.id %}'">
+                    <td>{{ case.patient.last_name }} {{ case.patient.first_name }}</td>
+                    {% if is_manager %}<td class="dg-muted">{{ case.curator.get_full_name|default:case.curator.username }}</td>{% endif %}
+                    <td>
+                        <span class="dg-badge {% if case.status == 'LOST' %}b-red{% endif %}">{{ case.get_status_display }}</span>
+                    </td>
+                    <td>{{ case.plan.agreed_sum|floatformat:0 }} ₽</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="dg-muted" style="padding:20px 10px;">Сопровождений нет</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Бэкдроп -->
+    <div x-show="modal" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
+
+    <!-- МОДАЛКА: НОВЫЙ ПАЦИЕНТ -->
+    <div x-show="modal === 'create'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" action="{% url 'crm:patient_create' %}" class="dg-panel"
+              style="max-width:640px;width:100%;margin:0;background:var(--dg-solid);max-height:90vh;overflow-y:auto;" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:patients_board' %}">
+            <div class="dg-panelhead"><h2>Новый пациент</h2></div>
+            <p class="dg-muted">После создания сделайте план лечения и кейс — пациент появится на доске сопровождений.</p>
+            <div style="display:grid;gap:12px;margin-top:12px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <label class="dg-muted" style="display:grid;gap:6px;">Фамилия <span style="color:var(--dg-warn);">*</span>
+                        <input type="text" name="last_name" required>
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Имя <span style="color:var(--dg-warn);">*</span>
+                        <input type="text" name="first_name" required>
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Отчество
+                        <input type="text" name="middle_name">
+                    </label>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <label class="dg-muted" style="display:grid;gap:6px;">Телефон <span style="color:var(--dg-warn);">*</span>
+                        <input type="tel" name="phone" required>
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Дата рождения
+                        <input type="date" name="birth_date">
+                    </label>
+                </div>
+                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                    <textarea name="comment" rows="2"></textarea>
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Создать</button>
+            </div>
+        </form>
+    </div>
+
+</div>
 {% endblock %}

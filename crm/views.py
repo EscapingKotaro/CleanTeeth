@@ -17,6 +17,7 @@ from django.db.models import Count, Exists, OuterRef, Q
 from django.db.models import F
 from decimal import Decimal
 from .audit import log_action
+from django.urls import reverse
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
@@ -512,7 +513,7 @@ from django.utils.dateparse import parse_date
 @login_required
 def patient_create(request):
     if request.method != "POST":
-        return redirect("crm:cases_list")
+        return redirect(_next_url(request) or reverse("crm:patients_list"))
 
     last_name = request.POST.get("last_name", "").strip()
     first_name = request.POST.get("first_name", "").strip()
@@ -520,7 +521,7 @@ def patient_create(request):
 
     if not last_name or not first_name or not phone:
         messages.error(request, "Фамилия, имя и телефон обязательны.")
-        return redirect("crm:cases_list")
+            return redirect(_next_url(request) or reverse("crm:patients_list"))
 
     Patient.objects.create(
         last_name=last_name,
@@ -531,7 +532,7 @@ def patient_create(request):
         comment=request.POST.get("comment", "").strip(),
     )
     messages.success(request, f"Пациент {last_name} {first_name} создан.")
-    return redirect("crm:cases_list")
+        return redirect(_next_url(request) or reverse("crm:patients_list"))
 
 @login_required
 def patient_update(request, patient_id):

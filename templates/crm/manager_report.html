@@ -38,68 +38,31 @@
                 {% endfor %}
             </select>
         </label>
-        <button type="submit" class="btn-primary">Показать</button>
+                <button type="submit" class="btn-primary" style="margin-left:auto;">Показать</button>
     </form>
 </section>
 
 <!-- СТРОКА 1: разбивка по статусам -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;margin-bottom:16px;">
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Активных</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;">{{ summary.active_now }}</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Передано</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;">{{ summary.transferred }}</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Презентован</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-blue);">{{ summary.presented }}</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Решение</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-warn);">{{ summary.in_decision }}</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Согласован</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-green);">{{ summary.agreed }}</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">В лечении</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-purple);">{{ summary.in_progress }}</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Завершено</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-gray);">{{ summary.completed }}</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Отказ</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-red);">{{ summary.lost }}</div>
-    </section>
+<!-- СТРОКА 1: разбивка по статусам -->
+<div class="dg-metrics-8">
+    <section class="dg-panel dg-stat"><p class="dg-muted">Активных</p><div class="dg-value">{{ summary.active_now }}</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Передано</p><div class="dg-value">{{ summary.transferred }}</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Презентован</p><div class="dg-value" style="color:var(--dg-blue);">{{ summary.presented }}</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Решение</p><div class="dg-value" style="color:var(--dg-warn);">{{ summary.in_decision }}</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Согласован</p><div class="dg-value" style="color:var(--dg-green);">{{ summary.agreed }}</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">В лечении</p><div class="dg-value" style="color:var(--dg-purple);">{{ summary.in_progress }}</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Завершено</p><div class="dg-value" style="color:var(--dg-gray);">{{ summary.completed }}</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Отказ</p><div class="dg-value" style="color:var(--dg-red);">{{ summary.lost }}</div></section>
 </div>
 
 <!-- СТРОКА 2: финансы + операционка -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;">
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Сумма согласованных</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-green);">{{ summary.sum_agreed|floatformat:0 }} ₽</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Сумма оплат</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-blue);">{{ summary.sum_paid|floatformat:0 }} ₽</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Остаток</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-warn);">{{ summary.remainder|floatformat:0 }} ₽</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Просроченные задачи</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-red);">{{ summary.overdue_tasks }}</div>
-    </section>
-    <section class="dg-panel" style="margin:0;padding:14px;text-align:center;">
-        <p class="dg-muted">Без след. действия</p>
-        <div class="dg-value" style="font-size:22px;margin:6px 0 2px;color:var(--dg-red);">{{ summary.no_next }}</div>
-    </section>
+<!-- СТРОКА 2: финансы + операционка -->
+<div class="dg-metrics-5">
+    <section class="dg-panel dg-stat"><p class="dg-muted">Сумма согласованных</p><div class="dg-value" style="color:var(--dg-green);">{{ summary.sum_agreed|floatformat:0 }} ₽</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Сумма оплат</p><div class="dg-value" style="color:var(--dg-blue);">{{ summary.sum_paid|floatformat:0 }} ₽</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Остаток</p><div class="dg-value" style="color:var(--dg-warn);">{{ summary.remainder|floatformat:0 }} ₽</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Просроченные задачи</p><div class="dg-value" style="color:var(--dg-red);">{{ summary.overdue_tasks }}</div></section>
+    <section class="dg-panel dg-stat"><p class="dg-muted">Без след. действия</p><div class="dg-value" style="color:var(--dg-red);">{{ summary.no_next }}</div></section>
 </div>
 
 <!-- Разбивка по кураторам -->

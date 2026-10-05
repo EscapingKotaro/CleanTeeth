@@ -53,7 +53,12 @@ def role_home(request):
     """Начальная страница в зависимости от роли."""
     return redirect(ROLE_HOME.get(request.user.role, "crm:dashboard"))
 
-
+def _next_url(request):
+    """Куда вернуться после действия: только внутренние URL из скрытого поля next."""
+    nxt = (request.POST.get("next") or "").strip()
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return nxt
+    return None
 
 from django.db import IntegrityError
 
@@ -860,7 +865,7 @@ def task_complete(request, task_id):
             comment=f"Задача выполнена. Результат: {task.result or '—'}",
         )
 
-    return redirect("crm:case_detail", case_id=task.case_id)
+    return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": task.case_id}))
 
 
 @login_required
@@ -882,7 +887,7 @@ def task_postpone(request, task_id):
             )
         else:
             messages.error(request, "Укажите новую дату и время.")
-    return redirect("crm:case_detail", case_id=task.case_id)
+    return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": task.case_id}))
 
 
 def manager_required(view_func):

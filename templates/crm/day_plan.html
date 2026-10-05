@@ -42,12 +42,12 @@
                  @drop.prevent="dragOver = null; dropTask('{{ slot.time }}')">
                 {% for task in slot.tasks %}
                     <div class="dp-event {% if task.is_overdue %}dp-overdue{% endif %}{% if task.status == 'DONE' %}dp-completed{% endif %}"
-                         draggable="true"
+                         draggable="{% if task.status == 'DONE' %}false{% else %}true{% endif %}"
                          x-show="filter === 'all' || (filter === 'done') === {% if task.status == 'DONE' %}true{% else %}false{% endif %}"
                          @dragstart="dragId = {{ task.id }}; dragDate = '{{ task.due_date|date:"Y-m-d" }}'"
                          @dragend="dragId = null"
-                         @click="modalTask = { id: {{ task.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: {% if task.status == 'DONE' %}true{% else %}false{% endif %}, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}' }">
-                        <span class="dp-time">{{ task.due_date|date:"H:i" }}</span>
+                         @click="{% if task.status == 'DONE' %}window.location.href='{% url 'crm:case_detail' task.case.id %}'{% else %}modalTask = { id: {{ task.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: false, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}' }{% endif %}">
+                         <span class="dp-time">{{ task.due_date|date:"H:i" }}</span>
                         <div style="min-width:0;">
                             <p class="dp-action">{{ task.description|default:task.get_task_type_display }}</p>
                             {% if task.description %}<p class="dp-desc">{{ task.get_task_type_display }}</p>{% endif %}
@@ -109,6 +109,7 @@
     <form x-ref="moveForm" method="post" style="display:none;">
         {% csrf_token %}
         <input type="hidden" name="due_date">
+        <input type="hidden" name="next" value="{% url 'crm:day_plan' %}{% if mine_only %}?mine=1{% endif %}">
     </form>
 
     <!-- Модалка задачи -->
@@ -127,6 +128,7 @@
 
                     <form method="post" :action="'{% url 'crm:task_postpone' 0 %}'.replace('/0/', '/' + modalTask.id + '/')">
                         {% csrf_token %}
+                        <input type="hidden" name="next" value="{% url 'crm:day_plan' %}{% if mine_only %}?mine=1{% endif %}">
                         <label class="dg-muted" style="display:block;margin-bottom:6px;">Дата и время</label>
                         <input type="datetime-local" name="due_date" x-model="modalTask.due" step="1800" style="width:100%;margin-bottom:12px;">
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">

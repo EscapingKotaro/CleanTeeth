@@ -40,6 +40,7 @@
         <form method="post" action="{% url 'crm:task_complete' task.id %}" class="dg-row"
               style="border-top:{% if forloop.first %}0{% else %}1px solid var(--dg-line){% endif %};">
             {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:home' %}">
             <input type="hidden" name="result" value="Отмечено на рабочем столе">
             <input type="checkbox" class="dg-check" onchange="this.form.submit()" aria-label="Выполнить задачу">
             <span class="dg-time" {% if task.is_overdue %}style="color:var(--dg-warn);"{% endif %}>{{ task.due_date|date:"H:i" }}</span>

@@ -293,48 +293,34 @@ def dashboard(request):
         "monthly_plan": monthly_plan,
     })
 
-
 @login_required
 def cases_list(request):
-    """Список кейсов (с сайдбарами)"""
-    # Фильтры
+    """Список кейсов: видны все сопровождения отдела + фильтр «только мои»."""
     status_filter = request.GET.get("status")
     sort_by = request.GET.get("sort", "-created_at")
+    mine_only = request.GET.get("mine") == "1"
 
-    # Базовый queryset
+    # Базовый queryset: ВСЕ кейсы (кураторы видят друг друга по правилу подмены)
     queryset = CuratorCase.objects.all()
 
-    # Фильтр по куратору (если не админ/управляющая)
-    if request.user.role in ["CURATOR", "SENIOR_CURATOR"]:
+    if mine_only:
         queryset = queryset.filter(curator=request.user)
 
-    # Фильтр по статусу
     if status_filter:
         queryset = queryset.filter(status=status_filter)
 
-    # Сортировка
     allowed_sorts = ["-created_at", "created_at", "-plan__agreed_sum", "plan__agreed_sum", "patient__last_name"]
-    if sort_by in allowed_sorts:
-        queryset = queryset.order_by(sort_by)
-    else:
-        queryset = queryset.order_by("-created_at")
-
-    # Подтягиваем связанные данные
+    queryset = queryset.order_by(sort_by if sort_by in allowed_sorts else "-created_at")
     queryset = queryset.select_related("patient", "plan", "curator")
-
-    # Статусы для фильтра
-    statuses = CuratorCase.Status.choices
 
     return render(request, "crm/cases_list.html", {
         "title": "Кейсы",
         "cases": queryset,
-        "statuses": statuses,
+        "statuses": CuratorCase.Status.choices,
         "current_status": status_filter,
         "current_sort": sort_by,
-        "use_sidebar": True,
-        # Данные для модалок
+        "current_mine": mine_only,
         "patients": Patient.objects.all().order_by("last_name")[:200],
-        "plans": TreatmentPlan.objects.all().order_by("-id")[:200],
         "doctors": Doctor.objects.filter(is_active=True).order_by("last_name"),
         "curators": CustomUser.objects.filter(
             role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
@@ -373,8 +359,6 @@ def case_detail(request, case_id):
         CuratorCase.objects.select_related("patient", "plan", "curator", "lost_reason"),
         id=case_id,
     )
-    if request.user.role == CustomUser.Role.CURATOR and case.curator_id != request.user.id:
-        return HttpResponseForbidden("У вас нет доступа к этому кейсу.")
 
     # Кнопки переходов (с развилкой после презентации)
     transitions = []
@@ -406,6 +390,9 @@ def case_detail(request, case_id):
     active_contract = case.patient.contracts.order_by("-date", "-id").first()
     contract_history = case.patient.contracts.order_by("-date", "-id")[1:]
 
+    is_owner = (case.curator == request.user)
+    can_delete_case = is_owner or request.user.role in (CustomUser.Role.MANAGER, CustomUser.Role.ADMIN)
+    
     return render(request, "crm/case_detail.html", {
         "title": f"Кейс #{case.id}",
         "case": case,
@@ -424,6 +411,8 @@ def case_detail(request, case_id):
         "funnel_steps": funnel_steps,
         "active_contract": active_contract,
         "contract_history": contract_history,
+        "is_owner": is_owner,
+        "can_delete_case": can_delete_case,
     })
 
 
@@ -1936,33 +1925,27 @@ def manager_report(request):
 
 @login_required
 def day_plan(request):
-    """План дня: расписание 9:00–18:00, шаг 30 минут (макет v2)."""
+    """План дня: расписание 9:00–18:00 по задачам ВСЕГО отдела (подмена на смене)."""
     now = timezone.now()
     today = now.date()
+    mine_only = request.GET.get("mine") == "1"
 
-    # В сетку: просроченные (за прошлые дни) + задачи сегодня + сделанные сегодня
-    grid_tasks = list(
-        Task.objects.filter(
-            assignee=request.user,
-            status=Task.TaskStatus.PENDING,
-            due_date__date__lte=today,
-        ).select_related("case", "case__patient").order_by("due_date")
-    ) + list(
-        Task.objects.filter(
-            assignee=request.user,
-            status=Task.TaskStatus.DONE,
-            due_date__date=today,
-        ).select_related("case", "case__patient").order_by("due_date")
+    base = Task.objects.select_related("case", "case__patient", "assignee")
+    if mine_only:
+        base = base.filter(assignee=request.user)
+
+    # В сетку: просроченные + сегодняшние (открытые) и сделанные сегодня
+    grid_tasks = sorted(
+        list(base.filter(status=Task.TaskStatus.PENDING, due_date__date__lte=today))
+        + list(base.filter(status=Task.TaskStatus.DONE, due_date__date=today)),
+        key=lambda t: t.due_date,
     )
 
-    # Ближайшие дни (вне сетки сегодня)
-    upcoming = Task.objects.filter(
-        assignee=request.user,
+    upcoming = base.filter(
         status=Task.TaskStatus.PENDING,
         due_date__date__range=(today + timedelta(days=1), today + timedelta(days=7)),
-    ).select_related("case", "case__patient").order_by("due_date")[:8]
+    ).order_by("due_date")[:8]
 
-    # Слоты 09:00–17:30
     slots = []
     for m in range(9 * 60, 18 * 60, 30):
         slots.append({"time": f"{m // 60:02d}:{m % 60:02d}", "tasks": []})
@@ -1987,6 +1970,7 @@ def day_plan(request):
         "not_done": not_done,
         "done_count": done_count,
         "today": today,
+        "mine_only": mine_only,
     })
 
 

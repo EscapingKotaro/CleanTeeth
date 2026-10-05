@@ -1,10 +1,10 @@
 <div x-show="modal === 'postpone_task'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
     <form method="post" :action="'{% url 'crm:task_postpone' 0 %}'.replace('/0/', '/' + taskId + '/')"
-          class="dg-panel" style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+          class="dg-panel" style="max-width:640px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
         {% csrf_token %}
         <div class="dg-panelhead"><h2>Перенести задачу</h2></div>
         <label class="dg-muted" style="display:grid;gap:6px;">Новая дата и время <span style="color:var(--dg-warn);">*</span>
-            <input type="datetime-local" name="due_date" required>
+            <input type="datetime-local" name="due_date" value="{% now 'Y-m-d\TH:i' %}" required>
         </label>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
             <button type="button" @click="modal = null">Отмена</button>

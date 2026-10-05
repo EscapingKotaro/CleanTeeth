@@ -6,7 +6,9 @@
         <div class="dg-panelhead"><h2>План презентован</h2></div>
         <div style="display:grid;gap:12px;">
             <label class="dg-muted" style="display:grid;gap:6px;">Дата презентации
-                <input type="date" name="presentation_date" value="{{ case.plan.presentation_date|date:'Y-m-d' }}" required>
+                <input type="date" name="presentation_date" 
+       value="{% if case.plan.presentation_date %}{{ case.plan.presentation_date|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}" 
+       required>
             </label>
             <label class="dg-muted" style="display:grid;gap:6px;">Результат презентации <span style="color:var(--dg-warn);">*</span>
                 <textarea name="presentation_result" rows="3" required

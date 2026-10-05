@@ -11,6 +11,12 @@
         <span>Кейс #{{ case.id }}</span>
     </nav>
 
+{% if not is_owner %}
+<div class="dg-alert" style="border-left:3px solid var(--dg-warn);margin-bottom:16px;">
+    <p style="color:var(--dg-warn);">Вы работаете с чужим кейсом (куратор: {{ case.curator.get_full_name|default:case.curator.username }})</p>
+</div>
+{% endif %}
+
     <!-- ПРЕДУПРЕЖДЕНИЕ НЕПРЕРЫВНОСТИ -->
     {% if case.continuity_broken %}
     <div class="dg-panel" style="border-left:3px solid var(--dg-warn);">

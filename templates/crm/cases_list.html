@@ -30,6 +30,11 @@
                 <option value="-plan__agreed_sum" {% if current_sort == '-plan__agreed_sum' %}selected{% endif %}>По сумме ↓</option>
                 <option value="patient__last_name" {% if current_sort == 'patient__last_name' %}selected{% endif %}>По фамилии</option>
             </select>
+                        <label style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" name="mine" value="1" class="dg-check"
+                       {% if current_mine %}checked{% endif %} onchange="this.form.submit()">
+                <span>Только мои</span>
+            </label>
             {% if current_status or current_sort != '-created_at' %}
             <a href="{% url 'crm:cases_list' %}" class="dg-muted" style="text-decoration:none;">Сбросить</a>
             {% endif %}

@@ -7,7 +7,7 @@
         <p class="dg-muted">Все поля обязательны. Активные задачи будут отменены.</p>
         <div style="display:grid;gap:12px;margin-top:12px;">
             <label class="dg-muted" style="display:grid;gap:6px;">Дата отказа <span style="color:var(--dg-warn);">*</span>
-                <input type="date" name="lost_date" required>
+                <input type="date" name="lost_date" value="{% now 'Y-m-d' %}" required>
             </label>
             <label class="dg-muted" style="display:grid;gap:6px;">Причина отказа <span style="color:var(--dg-warn);">*</span>
                 <select name="lost_reason" required>

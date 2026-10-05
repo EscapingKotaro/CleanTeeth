@@ -10,7 +10,7 @@
             <h1>Пациенты</h1>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <a href="{% url 'crm:cases_list' %}" style="text-decoration:none;">План и кейс</a>
+         
             {% if is_manager %}
             <a href="{% url 'crm:patients_list' %}" style="text-decoration:none;">Управление базой</a>
             {% endif %}

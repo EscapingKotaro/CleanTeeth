@@ -2060,11 +2060,12 @@ def home(request):
             (CuratorCase.Status.IN_PROGRESS, "В лечении"),
             (CuratorCase.Status.COMPLETED, "Завершено"),
         ]
-        stages = []
-        base = cohort.filter(status=stage_order[0][0]).count() or 1
-        for s, label in stage_order:
-            c = cohort.filter(status=s).count()
-            stages.append({"label": label, "count": c, "width": round(c / base * 100)})
+        counts = [cohort.filter(status=s).count() for s, _ in stage_order]
+        base = max(counts) or 1
+        stages = [
+            {"label": label, "count": c, "width": min(100, round(c / base * 100))}
+            for c, (s, label) in zip(counts, stage_order)
+        ]
         pres = cohort.filter(status__in=[CuratorCase.Status.PRESENTED, CuratorCase.Status.IN_DECISION,
                                          CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS,
                                          CuratorCase.Status.COMPLETED]).count()

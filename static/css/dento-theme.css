@@ -61,8 +61,7 @@ body {
 }
 
 .dg-frame {
-  --dg-shell-max: 1200px;
-  max-width: var(--dg-shell-max);
+  max-width: none;   
   margin: 0 auto;
   min-height: calc(100vh - 2rem);
   border: 1px solid rgba(255,255,255,.6);
@@ -90,12 +89,10 @@ body {
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--dg-line);
-  background: rgba(255,255,255,.46);
-  backdrop-filter: blur(24px);
+  background: rgba(255,255,255,.72);
+  min-height: calc(100vh - 2rem);
 }
-[data-theme="dark"] .dg-side {
-  background: rgba(37,46,56,.48);
-}
+[data-theme="dark"] .dg-side { background: rgba(37,46,56,.82); }
 
 .dg-brand {
   font-size: 23px;
@@ -178,12 +175,15 @@ body {
 /* Panels */
 .dg-panel {
   background: var(--dg-surface);
-  backdrop-filter: blur(20px) saturate(145%);
+  background-image: linear-gradient(145deg, rgba(255,255,255,.12), transparent 65%);
   border: 1px solid var(--dg-line);
   border-radius: 14px;
   box-shadow: var(--dg-shadow);
   padding: 22px;
   margin-bottom: 16px;
+}
+[data-theme="dark"] .dg-panel {
+  background-image: linear-gradient(145deg, rgba(255,255,255,.05), transparent 65%);
 }
 
 .dg-panelhead {
@@ -457,14 +457,13 @@ input:focus, select:focus, textarea:focus {
 .dg-top {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap;
-  background: var(--dg-surface);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255,255,255,.72);
   border: 1px solid var(--dg-line);
   border-radius: 10px;
   padding: 12px 14px;
   margin-bottom: 26px;
 }
+[data-theme="dark"] .dg-top { background: rgba(37,46,56,.82); }
 
 /* Подвал-примечание */
 .dg-foot { display: flex; justify-content: space-between; gap: 10px; color: var(--dg-muted); font-size: 11px; margin-top: 26px; }
@@ -572,3 +571,32 @@ input:focus, select:focus, textarea:focus {
 @media (max-width: 560px) {
     .dg-metrics-8 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ═══════════ Анимации и hover-отклик ═══════════ */
+button, .btn, a.btn, a.btn-primary, .dg-nav a, .dg-table tbody tr, .dp-event, .dg-menu-item {
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease,
+              box-shadow .15s ease, transform .15s ease, opacity .15s ease;
+}
+button:not(.btn-primary):hover, .btn:not(.btn-primary):hover { transform: translateY(-1px); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.14); }
+.dg-nav a:hover { background: rgba(90,125,152,.10); }
+.dg-table tbody tr:hover { background: rgba(127,145,166,.07); }
+.dp-event:hover { box-shadow: 0 6px 16px rgba(0,0,0,.08); transform: translateY(-1px); }
+.dg-menu-item:hover { background: var(--dg-soft); }
+
+/* Появление страницы: быстро и мягко, вместо «резко» */
+@keyframes dg-page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.dg-page { animation: dg-page-in .18s ease-out both; }
+
+.dg-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 10px; border: 0; border-radius: 6px;
+  background: none; color: inherit; font: inherit; font-size: 13px;
+  text-align: left; cursor: pointer; text-decoration: none;
+}
+
+.dg-stage div { overflow: hidden; }
+.dg-stage span { max-width: 100%; }

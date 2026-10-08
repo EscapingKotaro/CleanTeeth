@@ -40,10 +40,10 @@
             {% endif %}
         </form>
 
-        <!-- Таблица кейсов -->
+        <!-- Таблица КПЛ -->
         <table class="dg-table">
             <thead>
-                <tr><th>Пациент</th><th>Кейс</th><th>Этап</th><th>Согласовано</th><th>Куратор</th><th>Создан</th></tr>
+                <tr><th>Пациент</th><th>КПЛ</th><th>Этап</th><th>Согласовано</th><th>Куратор</th><th>Создан</th></tr>
             </thead>
             <tbody>
                 {% for case in cases %}
@@ -69,13 +69,13 @@
                     <td class="dg-muted">{{ case.created_at|date:"d.m.Y" }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="dg-muted" style="padding:24px 10px;text-align:center;">Кейсы не найдены</td></tr>
+                <tr><td colspan="6" class="dg-muted" style="padding:24px 10px;text-align:center;">КПЛ не найдены</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </section>
 
-    <!-- МОДАЛКА: СОЗДАТЬ ПЛАН ЛЕЧЕНИЯ (+ КЕЙС) -->
+    <!-- МОДАЛКА: СОЗДАТЬ ПЛАН ЛЕЧЕНИЯ (+ КПЛ) -->
     <div x-show="openPlanModal" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="openPlanModal = false"></div>
     <div x-show="openPlanModal" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
         <form method="post" action="{% url 'crm:plan_create' %}" class="dg-panel"
@@ -129,7 +129,7 @@
             </div>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
                 <button type="button" @click="openPlanModal = false">Отмена</button>
-                <button type="submit" class="btn-primary">Создать план и кейс</button>
+                <button type="submit" class="btn-primary">Создать КПЛ</button>
             </div>
         </form>
     </div>

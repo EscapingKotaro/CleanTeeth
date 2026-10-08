@@ -41,7 +41,7 @@
             <thead>
                 <tr>
                     <th>ФИО</th><th>Телефон</th><th>Дат. рожд.</th>
-                    <th>Кейсы / Планы</th><th>Договор</th><th>Статус</th>
+                    <th>КПЛ / Планы</th><th>Договор</th><th>Статус</th>
                     <th style="text-align:right;">Действия</th>
                 </tr>
             </thead>
@@ -55,7 +55,7 @@
                     <td>{{ p.phone }}</td>
                     <td class="dg-muted">{{ p.birth_date|date:"d.m.Y"|default:"—" }}</td>
                     <td>
-                        <span class="dg-badge b-blue">{{ p.cases_count }} кейс</span>
+                        <span class="dg-badge b-blue">{{ p.cases_count }} КПЛ</span>
                         <span class="dg-badge b-purple">{{ p.plans_count }} план</span>
                     </td>
                     <td>
@@ -206,7 +206,7 @@
               style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
             {% csrf_token %}
             <div class="dg-panelhead"><h2>Удалить пациента?</h2></div>
-            <p>«<span x-text="deleteTarget.name"></span>». Если у пациента есть кейсы или планы, он будет деактивирован вместо удаления (защита данных).</p>
+            <p>«<span x-text="deleteTarget.name"></span>». Если у пациента есть КПЛ или планы, он будет деактивирован вместо удаления.</p>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
                 <button type="button" @click="modal = null">Отмена</button>
                 <button type="submit" style="border-color:var(--dg-warn);color:var(--dg-warn);">Удалить</button>

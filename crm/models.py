@@ -400,6 +400,11 @@ class CuratorCase(models.Model):
     )
     lost_comment = models.TextField("Комментарий к отказу", blank=True)
 
+    next_visit_comment = models.TextField(
+        "Комментарий к следующему визиту", blank=True,
+        help_text="Что подготовить, о чём договориться, предупреждения",
+    )
+
     created_at = models.DateTimeField("Создан", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлён", auto_now=True)
 

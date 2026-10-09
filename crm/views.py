@@ -2168,3 +2168,22 @@ def doc_check_create(request):
     else:
         messages.success(request, "Проверка сохранена.")
     return redirect("crm:doc_checks")
+
+
+@login_required
+def case_next_visit(request, case_id):
+    """Дата и комментарий следующего визита по КПЛ."""
+    case = get_object_or_404(CuratorCase, id=case_id)
+    if request.method == "POST":
+        old = f"{case.next_control_date or '—'} | {case.next_visit_comment or '—'}"
+        case.next_control_date = parse_date(request.POST.get("next_control_date", "")) or case.next_control_date
+        case.next_visit_comment = request.POST.get("next_visit_comment", "").strip()
+        case.save(update_fields=["next_control_date", "next_visit_comment"])
+        log_action(
+            action=AuditLog.Action.UPDATE, instance=case,
+            field_name="next_visit", old_value=old,
+            new_value=f"{case.next_control_date or '—'} | {case.next_visit_comment or '—'}",
+            comment="Следующий визит: дата и комментарий",
+        )
+        messages.success(request, "Следующий визит сохранён.")
+    return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id}))

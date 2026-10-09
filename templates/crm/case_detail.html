@@ -74,6 +74,26 @@
                 </p>
             </div>
             {% endif %}
+
+                        <!-- Следующий визит -->
+            <div class="dg-panelhead" style="margin:14px 0 6px;">
+                <h2 style="font-size:14px;">Следующий визит</h2>
+                {% if case.is_active %}
+                <button type="button" @click="modal = 'next_visit'">Указать</button>
+                {% endif %}
+            </div>
+            {% if case.next_control_date or case.next_visit_comment %}
+            <div style="padding:10px;background:var(--dg-soft);border-radius:8px;">
+                <p class="dg-muted" style="font-size:12px;">
+                    Дата: {% if case.next_control_date %}<b style="color:var(--dg-text);">{{ case.next_control_date|date:"d.m.Y" }}</b>{% else %}не указана{% endif %}
+                </p>
+                {% if case.next_visit_comment %}
+                <p style="margin:6px 0 0;font-size:13px;white-space:pre-line;">{{ case.next_visit_comment }}</p>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="dg-muted">Не указан</p>
+            {% endif %}
         </section>
 
         <!-- ДВЕ КОЛОНКИ: ПАЦИЕНТ + ПЛАН -->
@@ -105,7 +125,7 @@
                         </div>
                         {% if case.patient.comment %}
                         <div style="margin-top:6px;">
-                            <p class="dg-muted">Комментарий</p>
+                            <p class="dg-muted">Комментарий о пациенте</p>
                             <p style="margin:4px 0 0;padding:10px;background:var(--dg-soft);border-radius:8px;">{{ case.patient.comment }}</p>
                         </div>
                         {% endif %}
@@ -490,6 +510,29 @@
     {% include "crm/partials/modals/case_in_progress.html" %}
     {% include "crm/partials/modals/case_complete.html" %}
     {% include "crm/partials/modals/case_lost.html" %}
+
+    <!-- СЛЕДУЮЩИЙ ВИЗИТ -->
+    <div x-show="modal === 'next_visit'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" action="{% url 'crm:case_next_visit' case.id %}" class="dg-panel"
+              style="max-width:480px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
+            <div class="dg-panelhead"><h2>Следующий визит</h2></div>
+            <div style="display:grid;gap:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Дата визита
+                    <input type="date" name="next_control_date" value="{{ case.next_control_date|date:'Y-m-d' }}">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий к визиту (нюансы для себя)
+                    <textarea name="next_visit_comment" rows="3"
+                              placeholder="Что подготовить, о чём договориться, предупреждения...">{{ case.next_visit_comment }}</textarea>
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
 
 </div>
 {% endblock %}

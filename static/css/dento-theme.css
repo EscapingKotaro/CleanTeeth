@@ -631,3 +631,19 @@ button:not(.btn-primary):hover, .btn:not(.btn-primary):hover { transform: transl
 
 .dg-stage div { overflow: hidden; }
 .dg-stage span { max-width: 100%; }
+
+
+/* Выпадающее меню аватара — тёмное в обеих темах (под сайдбар) */
+.dg-bottom .dg-person > div:last-child {
+  background: #1f2520 !important;           /* чуть светлее сайдбара */
+  border-color: rgba(255,255,255,.1) !important;
+}
+.dg-bottom .dg-menu-item {
+  color: #f0f2f5 !important;
+}
+.dg-bottom .dg-menu-item:hover {
+  background: rgba(255,255,255,.08) !important;
+}
+.dg-bottom .dg-menu-item svg {
+  stroke: #f0f2f5;
+}

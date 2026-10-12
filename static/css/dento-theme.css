@@ -51,24 +51,26 @@
 
 body {
   margin: 0;
-  padding: 1rem;
+  padding: 0;                    /* было: 1rem */
   font-family: Inter, 'Segoe UI', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color: var(--dg-text);
   background: var(--dg-page);
   -webkit-font-smoothing: antialiased;
+  height: 100vh;
+  overflow: hidden;              /* не скроллим body */
 }
 
 .dg-frame {
-  max-width: none;   
-  margin: 0 auto;
-  min-height: calc(100vh - 2rem);
-  border: 1px solid rgba(255,255,255,.6);
-  border-radius: 14px;
+  max-width: none;
+  margin: 0;
+  height: 100vh;                 /* было: min-height */
+  border: 0;                     /* убираем рамку */
+  border-radius: 0;
   overflow: hidden;
-  background: var(--dg-bg-gradient);
-  box-shadow: 0 12px 35px rgba(31,44,60,.05);
+  background: var(--dg-page);    /* плоский цвет, без градиента */
+  box-shadow: none;
 }
 
 [data-theme="dark"] .dg-frame {
@@ -79,8 +81,8 @@ body {
 /* Grid: sidebar 185px + main */
 .dg-shell {
   display: grid;
-  grid-template-columns: 185px minmax(0, 1fr);
-  min-height: 100vh;
+  grid-template-columns: 220px minmax(0, 1fr);  /* было: 185px */
+  height: 100vh;
 }
 
 /* Sidebar */
@@ -88,11 +90,38 @@ body {
   padding: 27px 15px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--dg-line);
-  background: rgba(255,255,255,.72);
-  min-height: calc(100vh - 2rem);
+  border-right: 1px solid rgba(255,255,255,.08);
+  background: #151a16;           /* тёмно-серый как просили */
+  height: 100vh;
+  overflow-y: auto;              /* скролл внутри сайдбара если пунктов много */
+  color: #f0f2f5;                /* светлый текст на тёмном фоне */
 }
-[data-theme="dark"] .dg-side { background: rgba(37,46,56,.82); }
+[data-theme="light"] .dg-side {
+  background: #151a16;
+  color: #f0f2f5;
+}
+[data-theme="dark"] .dg-side {
+  background: #151a16;
+  color: #f0f2f5;
+}
+
+.dg-side .dg-muted { color: rgba(240,242,245,.5); }
+.dg-side .dg-brand { color: #f0f2f5; }
+.dg-side .dg-logo { background: #f0f2f5; color: #151a16; }
+.dg-side .dg-nav a { color: rgba(240,242,245,.85); }
+.dg-side .dg-nav a:hover { background: rgba(255,255,255,.08); color: #f0f2f5; }
+.dg-side .dg-nav a.active {
+  background: rgba(90,125,152,.18);
+  box-shadow: inset 3px 0 0 #557a94;
+  color: #f0f2f5;
+}
+.dg-side .dg-avatar {
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.15);
+  color: #f0f2f5;
+}
+.dg-side .dg-person p { color: #f0f2f5; }
+.dg-side .dg-person .dg-muted { color: rgba(240,242,245,.6); }
 
 .dg-brand {
   font-size: 23px;
@@ -168,6 +197,8 @@ body {
 .dg-main {
   min-width: 0;
   padding: 22px 26px;
+  height: 100vh;
+  overflow-y: auto;              /* скролл ТОЛЬКО здесь */
 }
 
 
@@ -387,7 +418,7 @@ input:focus, select:focus, textarea:focus {
 /* Responsive */
 @media (max-width: 800px) {
   .dg-shell {
-    grid-template-columns: 65px 1fr;
+    grid-template-columns: 70px 1fr;
   }
   .dg-side {
     padding: 25px 10px;
@@ -457,7 +488,7 @@ input:focus, select:focus, textarea:focus {
 .dg-top {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap;
-  background: rgba(255,255,255,.72);
+  background: var(--dg-surface);
   border: 1px solid var(--dg-line);
   border-radius: 10px;
   padding: 12px 14px;

@@ -585,9 +585,9 @@
             {% csrf_token %}
             <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
             <div class="dg-panelhead"><h2>Закрыть наряд</h2></div>
-            <p class="dg-muted">Наряд — объём выполненного лечения, независимо от оплат: можно внести 500 ₽, а наряд закрыть на 100 ₽.</p>
+
             <div style="display:grid;gap:12px;margin-top:12px;">
-                <label class="dg-muted" style="display:grid;gap:6px;">Сумма, ₽ <span style="color:var(--dg-warn);">*</span>
+                <label class="dg-muted" style="display:grid;gap:6px;">Сумма, ₽ 
                     <input type="number" step="0.01" name="amount" required>
                 </label>
                 <label class="dg-muted" style="display:grid;gap:6px;">Дата закрытия

@@ -1,10 +1,25 @@
-{% extends "base.html" %}
-
+{% extends "base_v2.html" %}
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div class="bg-white rounded-xl shadow-sm border border-sky-100 p-8">
-    <h1 class="text-2xl font-bold text-sky-900 mb-4">{{ title }}</h1>
-    <p class="text-sky-600">Здесь будет дашборд куратора с планом дня, задачами и метриками.</p>
+<div class="dg-heading">
+    <div>
+        <div class="dg-tag">Администрирование</div>
+        <h1>Пороговые настройки контроля</h1>
+        <p class="dg-muted">Сроки, после которых отклонение попадает в контроль отдела</p>
+    </div>
 </div>
+
+<section class="dg-panel" style="max-width:560px;">
+    <form method="post" style="display:grid;gap:12px;">
+        {% csrf_token %}
+        {% for row in settings_rows %}
+        <label class="dg-muted" style="display:grid;gap:6px;">
+            {{ row.description|default:row.key }}
+            <input type="number" min="0" name="{{ row.key }}" value="{{ row.value }}">
+        </label>
+        {% endfor %}
+        <button type="submit" class="btn-primary" style="justify-self:start;">Сохранить</button>
+    </form>
+</section>
 {% endblock %}

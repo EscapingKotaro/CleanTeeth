@@ -515,6 +515,12 @@ class CuratorMonthlyPlan(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    scheme = models.ForeignKey(
+        MotivationScheme, on_delete=models.PROTECT,
+        null=True, blank=True, related_name="monthly_plans",
+        verbose_name="Модель мотивации (выбор вручную)",
+    )
+
     class Meta:
         verbose_name = "Месячный план куратора"
         verbose_name_plural = "Месячные планы кураторов"
@@ -590,39 +596,52 @@ class CuratorMonthlyPlan(models.Model):
         return round(self.fact_amount / today.day * days_in_month, 2)
 
     # ---------- БОНУСЫ (ТЗ п.14) ----------
-    @cached_property
-    def kpl_for_calc(self):
-        """Итого КПЛ для расчёта = К1 + корректировки (возвраты)."""
-        return (self.fact_amount or 0) + (self.adjustments or 0)
 
     @cached_property
     def bonuses_raw(self):
         return calculate_bonuses(self)
 
     @property
+    def kpl_for_calc(self):
+        return (self.fact_amount or Decimal("0")) + (self.adjustments or Decimal("0"))
+
+    @property
     def bonus_1(self):
-        return rub(self.bonuses_raw[0])
+        if not self.scheme:
+            return Decimal("0")
+        return (self.kpl_for_calc * self.scheme.bonus1_rate).quantize(Decimal("0.01"))
 
     @property
     def bonus_2(self):
-        return rub(self.bonuses_raw[1])
+        if not self.scheme:
+            return Decimal("0")
+        return (self.workorders_effective * self.scheme.bonus2_rate).quantize(Decimal("0.01"))
 
     @property
     def bonus_3(self):
-        return rub(self.bonuses_raw[2])
+        """Штраф / 0 / надбавка по границам выполнения из схемы."""
+        if not self.scheme:
+            return Decimal("0")
+        p = self.completion_percent or Decimal("0")
+        if p < self.scheme.threshold_mid:
+            return (-self.bonus_1 * self.scheme.under100_penalty_rate).quantize(Decimal("0.01"))
+        if p <= self.scheme.threshold_high:
+            return Decimal("0")
+        return (self.bonus_1 * self.scheme.over110_bonus_rate).quantize(Decimal("0.01"))
 
     @property
     def total_bonus(self):
-        # как в файле: итог из НЕокруглённых бонусов, потом округление
-        return rub(sum(self.bonuses_raw))
+        return self.bonus_1 + self.bonus_2 + self.bonus_3
 
     @property
     def daily_component(self):
-        """Компонент выплаты за рабочие дни."""
-        return (self.work_days or 0) * DAILY_RATE
+        if not self.scheme:
+            return Decimal("0")
+        return (Decimal(self.work_days or 0) * self.scheme.daily_rate).quantize(Decimal("0.01"))
 
     @property
     def total_payout(self):
+        return self.total_bonus + self.daily_component
         return self.total_bonus + self.daily_component
 
 
@@ -702,43 +721,49 @@ class Task(models.Model):
 
 
 class AuditLog(models.Model):
-    """Журнал критичных действий (ТЗ п.17). Кто / когда / что / старое / новое."""
+    """Журнал работы с пациентом (ТЗ гл.11)."""
 
     class Action(models.TextChoices):
         CREATE = "CREATE", "Создание"
         UPDATE = "UPDATE", "Изменение"
         DELETE = "DELETE", "Удаление"
-        ROLE_CHANGE = "ROLE_CHANGE", "Смена роли"
-        ACTIVATE = "ACTIVATE", "Активация"
-        DEACTIVATE = "DEACTIVATE", "Деактивация"
-        PASSWORD_CHANGE = "PASSWORD_CHANGE", "Смена пароля"
+        COMPLETE = "COMPLETE", "Выполнение"
+        STATUS = "STATUS", "Смена статуса"
+        REASSIGN = "REASSIGN", "Смена ответственного"
 
     actor = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name="audit_actions",
-        verbose_name="Кто выполнил",
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="audit_actions", verbose_name="Фактический исполнитель",
     )
-    action = models.CharField("Действие", max_length=30, choices=Action.choices)
-    model_name = models.CharField("Сущность", max_length=100)
-    object_id = models.CharField("ID объекта", max_length=64, blank=True)
-    object_repr = models.CharField("Объект", max_length=255, blank=True)
-    field_name = models.CharField("Поле", max_length=100, blank=True)
-    old_value = models.TextField("Старое значение", blank=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="audit_as_owner", verbose_name="Владелец пациента на момент действия",
+    )
+    action = models.CharField("Действие", max_length=20, choices=Action.choices)
+    created_at = models.DateTimeField("Дата и время", auto_now_add=True)
+    model_name = models.CharField("Объект", max_length=64)
+    object_id = models.CharField("ID объекта", max_length=32)
+    object_repr = models.CharField("Представление объекта", max_length=200, blank=True)
+    case = models.ForeignKey("CuratorCase", on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_logs")
+    patient = models.ForeignKey("Patient", on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_logs")
+    field_name = models.CharField("Поле", max_length=64, blank=True)
+    old_value = models.TextField("Прежнее значение", blank=True)
     new_value = models.TextField("Новое значение", blank=True)
+    amount = models.DecimalField("Сумма", max_digits=10, decimal_places=2, null=True, blank=True)
     comment = models.TextField("Комментарий", blank=True)
-    ip_address = models.GenericIPAddressField("IP", null=True, blank=True)
-    created_at = models.DateTimeField("Когда", auto_now_add=True)
 
     class Meta:
-        verbose_name = "Запис аудита"
-        verbose_name_plural = "Аудит (журнал действий)"
+        verbose_name = "Запись журнала"
+        verbose_name_plural = "Журнал работы"
         ordering = ["-created_at"]
 
-    def __str__(self):
-        return f"{self.get_action_display()} · {self.model_name} #{self.object_id} · {self.created_at:%d.%m.%Y %H:%M}"
+    @property
+    def is_substitution(self):
+        """Действие выполнено не владельцем пациента (подмена)."""
+        return bool(self.actor_id and self.owner_id and self.actor_id != self.owner_id)
 
+    def __str__(self):
+        return f"{self.created_at:%d.%m.%Y %H:%M} · {self.get_action_display()} · {self.object_repr}"
 
 class PlanDirection(models.Model):
     
@@ -938,3 +963,51 @@ def get_threshold(key):
         description=dict((k, d) for k, _, d in DEFAULT_THRESHOLDS)[key],
     )
     return default
+
+
+class MotivationScheme(models.Model):
+    """
+    Версия модели мотивации с датой начала действия (ТЗ гл.8).
+    Исторические формулы разные, поэтому модель выбирается ВРУЧНУЮ
+    при назначении месячного плана — автоматически не подставляется.
+    """
+    name = models.CharField("Название модели", max_length=120)
+    valid_from = models.DateField("Действует с")
+    bonus1_rate = models.DecimalField(
+        "Бонус 1: доля от КПЛ", max_digits=6, decimal_places=4,
+        default=Decimal("0.0070"),
+    )
+    bonus2_rate = models.DecimalField(
+        "Бонус 2: доля от заказ-нарядов", max_digits=6, decimal_places=4,
+        default=Decimal("0.0020"),
+    )
+    under100_penalty_rate = models.DecimalField(
+        "Штраф при выполнении ниже границы: доля от Бонуса 1",
+        max_digits=4, decimal_places=2, default=Decimal("1.00"),
+    )
+    over110_bonus_rate = models.DecimalField(
+        "Надбавка при выполнении от верхней границы: доля от Бонуса 1",
+        max_digits=4, decimal_places=2, default=Decimal("0.20"),
+    )
+    threshold_mid = models.DecimalField(
+        "Нижняя граница выполнения, %", max_digits=5, decimal_places=2,
+        default=Decimal("100.00"),
+    )
+    threshold_high = models.DecimalField(
+        "Верхняя граница выполнения, %", max_digits=5, decimal_places=2,
+        default=Decimal("110.00"),
+    )
+    daily_rate = models.DecimalField(
+        "Ставка рабочего дня, ₽", max_digits=10, decimal_places=2,
+        default=Decimal("1000.00"),
+    )
+    comment = models.TextField("Примечание", blank=True)
+    created_at = models.DateTimeField("Создана", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Модель мотивации"
+        verbose_name_plural = "Модели мотивации"
+        ordering = ["-valid_from"]
+
+    def __str__(self):
+        return f"{self.name} (с {self.valid_from:%d.%m.%Y})"

@@ -1,10 +1,48 @@
-{% extends "base.html" %}
-
+{% extends "base_v2.html" %}
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div class="bg-white rounded-xl shadow-sm border border-sky-100 p-8">
-    <h1 class="text-2xl font-bold text-sky-900 mb-4">{{ title }}</h1>
-    <p class="text-sky-600">Здесь будет дашборд куратора с планом дня, задачами и метриками.</p>
+<div class="dg-heading">
+    <div>
+        <div class="dg-tag">Руководитель</div>
+        <h1>Контроль отдела</h1>
+        <p class="dg-muted">Отклонения выявляются автоматически по пороговым настройкам</p>
+    </div>
+    <form method="get">
+        <select name="curator" onchange="this.form.submit()">
+            <option value="">Все кураторы</option>
+            {% for u in curators %}
+            <option value="{{ u.id }}" {% if curator_id == u.id|stringformat:"s" %}selected{% endif %}>
+                {{ u.get_full_name|default:u.username }}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
 </div>
+
+{% for label, cases in deviation_blocks %}
+<section class="dg-panel">
+    <div class="dg-panelhead">
+        <h2>{{ label }}</h2>
+        <span class="dg-badge {% if cases %}b-warn{% else %}b-green{% endif %}">{{ cases|length }}</span>
+    </div>
+    {% if cases %}
+    <table class="dg-table dg-table-sm">
+        <thead><tr><th>КПЛ</th><th>Пациент</th><th>Куратор</th><th>Этап</th></tr></thead>
+        <tbody>
+            {% for case in cases %}
+            <tr style="cursor:pointer;" onclick="window.location.href='{% url 'crm:case_detail' case.id %}'">
+                <td>#{{ case.id }}</td>
+                <td>{{ case.patient.last_name }} {{ case.patient.first_name }}</td>
+                <td class="dg-muted">{{ case.curator.get_full_name|default:case.curator.username }}</td>
+                <td><span class="dg-badge">{{ case.get_status_display }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="dg-muted">Отклонений нет</p>
+    {% endif %}
+</section>
+{% endfor %}
 {% endblock %}

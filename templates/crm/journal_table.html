@@ -1,0 +1,37 @@
+<table class="dg-table dg-table-sm">
+    <thead>
+        <tr><th>Когда</th><th>Исполнитель</th><th>Действие</th><th>Объект</th><th>Изменение</th><th>Сумма</th></tr>
+    </thead>
+    <tbody>
+        {% for log in audit_logs %}
+        <tr>
+            <td class="dg-muted">{{ log.created_at|date:"d.m.Y H:i" }}</td>
+            <td>
+                {{ log.actor.get_full_name|default:log.actor.username|default:"система" }}
+                {% if log.is_substitution %}
+                <span class="dg-badge b-warn" title="Действие выполнено не владельцем пациента">подмена</span>
+                {% elif log.actor_id and log.actor_id == log.owner_id %}
+                <span class="dg-badge b-blue">владелец</span>
+                {% endif %}
+            </td>
+            <td>
+                <span class="dg-badge
+                    {% if log.action == 'CREATE' %}b-green
+                    {% elif log.action == 'DELETE' %}b-red
+                    {% elif log.action == 'COMPLETE' %}b-purple
+                    {% elif log.action == 'REASSIGN' %}b-warn
+                    {% else %}b-blue{% endif %}">{{ log.get_action_display }}</span>
+            </td>
+            <td class="dg-muted">{{ log.object_repr|default:log.model_name }}</td>
+            <td>
+                {% if log.field_name %}<b>{{ log.field_name }}</b>: {% endif %}
+                {% if log.old_value %}{{ log.old_value }} → {% endif %}{{ log.new_value|default:"—" }}
+                {% if log.comment %}<br><span class="dg-muted">{{ log.comment }}</span>{% endif %}
+            </td>
+            <td>{% if log.amount is not None %}{{ log.amount|floatformat:0 }} ₽{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="dg-muted" style="padding:20px 10px;text-align:center;">Записей нет</td></tr>
+        {% endfor %}
+    </tbody>
+</table>

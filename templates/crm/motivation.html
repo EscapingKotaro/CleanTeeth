@@ -9,6 +9,14 @@
             <div class="dg-tag">Кураторский отдел</div>
             <h1>Мотивация</h1>
             <p class="dg-muted">{{ target_user.get_full_name|default:target_user.username }} · {% now "F Y" %}</p>
+            {% if monthly_plan and monthly_plan.scheme %}
+            <span class="dg-badge b-blue">Модель: {{ monthly_plan.scheme.name }} · с {{ monthly_plan.scheme.valid_from|date:"d.m.Y" }}</span>
+            {% elif monthly_plan %}
+            <span class="dg-badge b-warn">Модель не назначена — бонусы не считаются</span>
+            {% endif %}
+            {% if can_manage %}
+            <a href="{% url 'crm:motivation_schemes' %}" style="text-decoration:none;">Модели мотивации</a>
+            {% endif %}
         </div>
         {% if curators|length > 1 and not is_own or can_manage %}
         <form method="get">
@@ -98,6 +106,52 @@
         </table>
     </section>
 
+        <section class="dg-panel">
+        <div class="dg-panelhead"><h2>Расшифровка исходных сумм</h2></div>
+
+        <h2 style="font-size:14px;margin-bottom:8px;">К1: согласованные планы за месяц ({{ breakdown_plans|length }})</h2>
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Пациент</th><th>Дата согласования</th><th style="text-align:right;">Сумма</th></tr></thead>
+            <tbody>
+                {% for p in breakdown_plans %}
+                <tr>
+                    <td>{{ p.patient.last_name }} {{ p.patient.first_name }}</td>
+                    <td class="dg-muted">{{ p.agreement_date|date:"d.m.Y" }}</td>
+                    <td style="text-align:right;">{{ p.agreed_sum|floatformat:0 }} ₽</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="dg-muted">Согласованных планов нет</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2 style="font-size:14px;margin:18px 0 8px;">Закрытые наряды за месяц ({{ breakdown_orders|length }})</h2>
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Наряд</th><th>Пациент</th><th>Дата</th><th style="text-align:right;">Сумма</th></tr></thead>
+            <tbody>
+                {% for w in breakdown_orders %}
+                <tr>
+                    <td>{{ w.number }}</td>
+                    <td>{{ w.plan.patient.last_name }} {{ w.plan.patient.first_name }}</td>
+                    <td class="dg-muted">{{ w.closed_date|date:"d.m.Y" }}</td>
+                    <td style="text-align:right;">{{ w.amount|floatformat:0 }} ₽</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="dg-muted">Нарядов нет</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="dg-detail" style="margin-top:14px;">
+            <span class="dg-muted">Корректировки (возвраты по КПЛ / мат. капитал)</span>
+            <span>{{ monthly_plan.adjustments|floatformat:0 }} ₽</span>
+        </div>
+        <div class="dg-detail">
+            <span class="dg-muted">Рабочие дни × ставка {{ monthly_plan.scheme.daily_rate|floatformat:0 }} ₽</span>
+            <span>{{ monthly_plan.work_days }} дн.</span>
+        </div>
+    </section>
+
     <!-- МОДАЛКА: РЕДАКТИРОВАТЬ ПЛАН (только управляющая) -->
     {% if can_manage %}
     <div x-show="modal === 'edit_plan'" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
@@ -121,6 +175,17 @@
                 </label>
                 <label class="dg-muted" style="display:grid;gap:6px;">Рабочих дней
                     <input type="number" name="work_days" value="{{ monthly_plan.work_days }}">
+                </label>
+                                <label class="dg-muted" style="display:grid;gap:6px;">Модель мотивации <span style="color:var(--dg-warn);">*</span>
+                    <select name="scheme_id" required>
+                        <option value="">Выберите модель</option>
+                        {% for s in schemes %}
+                        <option value="{{ s.id }}" {% if monthly_plan.scheme_id == s.id %}selected{% endif %}>
+                            {{ s.name }} · с {{ s.valid_from|date:"d.m.Y" }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <span style="font-size:11px;">Выбор вручную: расчёт месяца всегда идёт по привязанной модели.</span>
                 </label>
             </div>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">

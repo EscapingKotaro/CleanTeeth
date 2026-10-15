@@ -482,6 +482,23 @@ def motivation(request):
         curator=target_user, year=today.year, month=today.month
     ).first()
 
+    breakdown_plans = []
+    breakdown_orders = []
+    if monthly_plan:
+        breakdown_plans = TreatmentPlan.objects.filter(
+            cases__curator=target_user,
+            agreement_date__year=monthly_plan.year,
+            agreement_date__month=monthly_plan.month,
+        ).exclude(cases__status=CuratorCase.Status.LOST).distinct().select_related(
+            "patient"
+        ).order_by("agreement_date")
+
+        breakdown_orders = WorkOrder.objects.filter(
+            plan__cases__curator=target_user,
+            closed_date__year=monthly_plan.year,
+            closed_date__month=monthly_plan.month,
+        ).select_related("plan__patient").order_by("closed_date")
+
     history = CuratorMonthlyPlan.objects.filter(curator=target_user).order_by("-year", "-month")[:12]
 
     curators = CustomUser.objects.filter(
@@ -499,16 +516,33 @@ def motivation(request):
         "is_own": target_user.id == request.user.id,
         "can_manage": can_manage,
         "use_sidebar": False,
+        "breakdown_plans": breakdown_plans,
+        "breakdown_orders": breakdown_orders,
+        "schemes": MotivationScheme.objects.all(),
     })
 
-
+# осторожно! говнокод
 @login_required
 def team_control(request):
-    """Контроль отдела (для старшего куратора и выше)"""
+    if request.user.role not in (CustomUser.Role.SENIOR_CURATOR, CustomUser.Role.MANAGER, CustomUser.Role.ADMIN):
+        messages.error(request, "Недостаточно прав.")
+        return redirect("crm:home")
+
+    curator_id = request.GET.get("curator", "")
+    curator = CustomUser.objects.filter(pk=curator_id).first() if curator_id else None
+    deviations = collect_deviations(curator=curator)
+
+    deviation_blocks = [(label, deviations[key]) for key, label in DEVIATION_LABELS]
+
     return render(request, "crm/team_control.html", {
         "title": "Контроль отдела",
+        "deviations": deviations,
+        "deviation_labels": DEVIATION_LABELS,
+        "deviation_blocks": deviation_blocks,
+        "curators": CustomUser.objects.filter(role=CustomUser.Role.CURATOR).order_by("last_name"),
+        "curator_id": curator_id,
     })
-
+## !! конец говнокода
 
 @login_required
 def analytics(request):
@@ -526,12 +560,7 @@ def document_checks(request):
     })
 
 
-@login_required
-def settings_view(request):
-    """Настройки (только для админа)"""
-    return render(request, "crm/settings.html", {
-        "title": "Настройки",
-    })
+
 
 from django.shortcuts import redirect
 from django.contrib import messages
@@ -566,6 +595,13 @@ def patient_create(request):
 @login_required
 def patient_update(request, patient_id):
     if request.method == 'POST':
+        old_values = {
+            "last_name": patient.last_name,
+            "first_name": patient.first_name,
+            "middle_name": patient.middle_name,
+            "phone": patient.phone,
+            "comment": patient.comment,
+        }
         patient = Patient.objects.get(id=patient_id)
         patient.last_name = request.POST.get('last_name')
         patient.first_name = request.POST.get('first_name')
@@ -574,12 +610,29 @@ def patient_update(request, patient_id):
         patient.comment = request.POST.get('comment', '')
         patient.birth_date=parse_date(request.POST.get("birth_date"))
         patient.save()
+        for f, old in old_values.items():
+            new = getattr(patient, f)
+            if str(old) != str(new):
+                log_action(
+                    action=AuditLog.Action.UPDATE, instance=patient,
+                    field_name=f,
+                    old_value=old or "—", new_value=new or "—",
+                    comment="Изменение карточки пациента",
+                )
         messages.success(request, "Данные пациента обновлены")
     return redirect('crm:case_detail', case_id=request.POST.get('case_id', 1)) # Упрощено для примера
 
 @login_required
 def plan_update(request, plan_id):
     if request.method == 'POST':
+        old_values = {
+            "initial_sum": plan.initial_sum,
+            "presentation_sum": plan.presentation_sum,
+            "agreed_sum": plan.agreed_sum,
+            "plan_type": plan.plan_type,
+            "presentation_date": plan.presentation_date,
+            "agreement_date": plan.agreement_date,
+        }
         plan = TreatmentPlan.objects.get(id=plan_id)
         plan.initial_sum = request.POST.get('initial_sum', 0)
         plan.presentation_sum = request.POST.get('presentation_sum', 0)
@@ -589,6 +642,17 @@ def plan_update(request, plan_id):
         plan.plan_type = request.POST.get('plan_type', '')
         plan.is_signed_by_patient = request.POST.get('is_signed_by_patient') == 'true'
         plan.save()
+        for f, old in old_values.items():
+            new = getattr(plan, f)
+            if str(old) != str(new):
+                log_action(
+                    action=AuditLog.Action.UPDATE, instance=plan,
+                    field_name=f,
+                    old_value=old if old not in (None, "") else "—",
+                    new_value=new if new not in (None, "") else "—",
+                    amount=new if f == "agreed_sum" else None,
+                    comment="Критичное поле плана",
+                )
         messages.success(request, "План лечения обновлён")
     return redirect('crm:case_detail', case_id=plan.cases.first().id if plan.cases.exists() else 1)
 
@@ -822,6 +886,7 @@ def _apply_status_transition(case, new_status, post, user):
 def case_change_status(request, case_id):
     """Смена статуса КПЛ с сохранением доп. полей для IN_DECISION и LOST."""
     case = get_object_or_404(CuratorCase, id=case_id)
+    touch_case(case)
     if request.method != "POST":
         return redirect("crm:case_detail", case_id=case.id)
 
@@ -907,9 +972,14 @@ def case_change_status(request, case_id):
     case.save()
 
     log_action(
-        action=AuditLog.Action.UPDATE, instance=case,
-        field_name="status", old_value=old_status, new_value=new_status,
-        comment=f"Смена статуса: {dict(CuratorCase.Status.choices).get(old_status)} → {dict(CuratorCase.Status.choices).get(new_status)}",
+        action=AuditLog.Action.STATUS, instance=case,
+        field_name="status",
+        old_value=old_status,
+        new_value=new_status,
+        comment=(
+            f"{dict(CuratorCase.Status.choices).get(old_status)} → "
+            f"{dict(CuratorCase.Status.choices).get(new_status)}"
+        ),
     )
     messages.success(request, f"Статус изменён на «{dict(CuratorCase.Status.choices).get(new_status)}».")
     return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id}))
@@ -918,6 +988,7 @@ def case_change_status(request, case_id):
 @login_required
 def task_create(request, case_id):
     case = get_object_or_404(CuratorCase, id=case_id)
+    touch_case(case)
     if request.method == "POST":
         due_dt = _parse_dt(request.POST.get("due_date"))
         if not due_dt:
@@ -931,6 +1002,12 @@ def task_create(request, case_id):
                 assignee_id=request.POST.get("assignee_id") or case.curator_id or request.user.id,
                 priority=request.POST.get("priority") or Task.Priority.MEDIUM,
             )
+            log_action(
+        action=AuditLog.Action.CREATE, instance=task,
+        field_name="task",
+        new_value=f"{task.get_task_type_display()} · {task.due_date:%d.%m.%Y %H:%M}",
+        comment="Задача создана",
+    )
             messages.success(request, "Задача создана.")
     return redirect("crm:case_detail", case_id=case_id)
 
@@ -945,14 +1022,11 @@ def task_complete(request, task_id):
         task.save(update_fields=["status", "result", "completed_at"])
         messages.success(request, "Задача выполнена.")
 
-     
-
         log_action(
-            action=AuditLog.Action.UPDATE,
-            instance=task,
+            action=AuditLog.Action.COMPLETE, instance=task,
             field_name="status",
-            new_value="DONE",
-            comment=f"Задача выполнена. Результат: {task.result or '—'}",
+            old_value="PENDING", new_value="DONE",
+            comment=f"Результат: {task.result or '—'}",
         )
 
     return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": task.case_id}))
@@ -962,23 +1036,19 @@ def task_complete(request, task_id):
 def task_postpone(request, task_id):
     task = get_object_or_404(Task, id=task_id)
     if request.method == "POST":
-        new_dt = _parse_dt(request.POST.get("due_date"))
-        if new_dt:
-            task.due_date = new_dt
-            task.save(update_fields=["due_date"])
-            messages.success(request, "Задача перенесена.")
-            log_action(
-                action=AuditLog.Action.UPDATE,
-                instance=task,
-                field_name="due_date",
-                old_value="",
-                new_value=new_dt.strftime("%d.%m.%Y %H:%M"),
-                comment="Перенос задачи (в т.ч. drag-and-drop в плане дня)",
-            )
-        else:
-            messages.error(request, "Укажите новую дату и время.")
+        old_due = task.due_date
+        new_due = _parse_dt(request.POST.get("due_date", "")) or old_due
+        task.due_date = new_due
+        task.save(update_fields=["due_date"])
+        log_action(
+            action=AuditLog.Action.UPDATE, instance=task,
+            field_name="due_date",
+            old_value=f"{old_due:%d.%m.%Y %H:%M}",
+            new_value=f"{new_due:%d.%m.%Y %H:%M}",
+            comment="Задача перенесена",
+        )
+        messages.success(request, "Задача перенесена.")
     return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": task.case_id}))
-
 
 def manager_required(view_func):
     """Доступ только для Управляющей и Админа (справочники — их зона)."""
@@ -1447,11 +1517,14 @@ def schedule_item_create(request, plan_id):
     )
 
     log_action(
-        action=AuditLog.Action.CREATE,
-        instance=plan,
-        field_name="schedule",
-        new_value=f"{due_date:%d.%m.%Y} · {amount} ₽ {'(аванс)' if is_advance else ''}",
-        comment="Добавлен пункт графика платежей",
+        action=AuditLog.Action.CREATE, instance=item,
+        field_name="schedule_item",
+        new_value=(
+            f"{item.planned_amount} ₽ на {item.due_date:%d.%m.%Y}"
+            f"{' (аванс)' if item.is_advance else ''}"
+        ),
+        amount=item.planned_amount,
+        comment="Пункт графика платежей",
     )
     messages.success(request, "Пункт графика добавлен.")
     return redirect("crm:case_detail", case_id=plan.cases.first().id)
@@ -1544,10 +1617,14 @@ def payment_create(request, plan_id):
                 schedule_item.save(update_fields=["payment_date"])
 
     log_action(
-        action=AuditLog.Action.CREATE,
-        instance=plan,
+        action=AuditLog.Action.CREATE, instance=payment,
         field_name="payment",
-        new_value=f"{amount} ₽ · {'аванс' if is_advance else 'оплата'} · {payment_date:%d.%m.%Y}",
+        new_value=(
+            f"{payment.amount} ₽ от {payment.payment_date:%d.%m.%Y}"
+            f"{' (аванс)' if payment.is_advance else ''}"
+            f" · {payment.get_payment_category_display()}"
+        ),
+        amount=payment.amount,
         comment="Внесён платёж",
     )
     messages.success(request, f"Платёж {amount} ₽ внесён.")
@@ -1595,6 +1672,23 @@ def motivation_page(request):
         curator=target_user, year=today.year, month=today.month
     ).first()
 
+    breakdown_plans = []
+    breakdown_orders = []
+    if monthly_plan:
+        breakdown_plans = TreatmentPlan.objects.filter(
+            cases__curator=target_user,
+            agreement_date__year=monthly_plan.year,
+            agreement_date__month=monthly_plan.month,
+        ).exclude(cases__status=CuratorCase.Status.LOST).distinct().select_related(
+            "patient"
+        ).order_by("agreement_date")
+
+        breakdown_orders = WorkOrder.objects.filter(
+            plan__cases__curator=target_user,
+            closed_date__year=monthly_plan.year,
+            closed_date__month=monthly_plan.month,
+        ).select_related("plan__patient").order_by("closed_date")
+
     history = CuratorMonthlyPlan.objects.filter(curator=target_user).order_by("-year", "-month")[:12]
 
     # Список кураторов для переключателя (для руководителей)
@@ -1612,6 +1706,9 @@ def motivation_page(request):
         "curators": curators,
         "is_own": target_user.id == request.user.id,
         "can_manage": can_manage,
+        "breakdown_plans": breakdown_plans,
+        "breakdown_orders": breakdown_orders,
+        "schemes": MotivationScheme.objects.all(),
     })
 
 
@@ -1627,8 +1724,14 @@ def monthly_plan_upsert(request):
 
     curator = get_object_or_404(CustomUser, id=curator_id)
 
+    scheme_id = request.POST.get("scheme_id")
+    scheme = get_object_or_404(MotivationScheme, id=scheme_id) if scheme_id else None
+    if not scheme:
+        messages.error(request, "Выберите модель мотивации — расчёт без модели не выполняется.")
+        return redirect("crm:motivation")
+
     plan, created = CuratorMonthlyPlan.objects.update_or_create(
-        curator=curator, year=year, month=month,
+        curator=curator, year=year, month=month, scheme = scheme, 
         defaults={
             "plan_amount": _to_decimal(request.POST.get("plan_amount")),
             "adjustments": _to_decimal(request.POST.get("adjustments")),
@@ -1671,11 +1774,10 @@ def contract_create(request, patient_id):
     )
 
     log_action(
-        action=AuditLog.Action.CREATE,
-        instance=contract,
+        action=AuditLog.Action.CREATE, instance=contract,
         field_name="contract",
-        new_value=f"№{number} от {date:%d.%m.%Y}",
-        comment="Создан договор",
+        new_value=f"№{contract.number} от {contract.date:%d.%m.%Y} ({contract.get_status_display()})",
+        comment="Договор создан",
     )
     messages.success(request, f"Договор №{number} создан.")
     return redirect("crm:case_detail", case_id=patient.cases.first().id)
@@ -1686,7 +1788,11 @@ def contract_update(request, contract_id):
     contract = get_object_or_404(Contract, id=contract_id)
     if request.method != "POST":
         return redirect("crm:case_detail", case_id=contract.patient.cases.first().id)
-
+    old_values = {
+            "number": contract.number,
+            "date": contract.date,
+            "status": contract.status,
+        }
     old_status = contract.status
     contract.number = request.POST.get("number", contract.number).strip()
     contract.date = parse_date(request.POST.get("date", "")) or contract.date
@@ -1694,15 +1800,16 @@ def contract_update(request, contract_id):
     contract.comment = request.POST.get("comment", "").strip()
     contract.save()
 
-    if old_status != contract.status:
-        log_action(
-            action=AuditLog.Action.UPDATE,
-            instance=contract,
-            field_name="status",
-            old_value=old_status,
-            new_value=contract.status,
-            comment=f"Статус договора изменён",
-        )
+
+    for f, old in old_values.items():
+        new = getattr(contract, f)
+        if str(old) != str(new):
+            log_action(
+                    action=AuditLog.Action.UPDATE, instance=contract,
+                    field_name=f,
+                    old_value=old or "—", new_value=new or "—",
+                    comment="Изменение договора",
+                )
 
     messages.success(request, "Договор обновлён.")
     return redirect("crm:case_detail", case_id=contract.patient.cases.first().id)
@@ -1715,6 +1822,8 @@ def schedule_item_update(request, item_id):
 
     if request.method != "POST":
         return redirect("crm:case_detail", case_id=case_id)
+
+    old_due, old_amount = item.due_date, item.planned_amount
 
     due_date = parse_date(request.POST.get("due_date", ""))
     amount = _to_decimal(request.POST.get("planned_amount", 0))
@@ -1739,11 +1848,21 @@ def schedule_item_update(request, item_id):
     item.comment = request.POST.get("comment", "").strip()
     item.save()
 
-    log_action(
-        action=AuditLog.Action.UPDATE, instance=plan, field_name="schedule",
-        old_value=old, new_value=f"{due_date:%d.%m.%Y} · {amount} ₽",
-        comment="Изменён пункт графика платежей",
-    )
+    if str(old_due) != str(item.due_date):
+        log_action(
+                action=AuditLog.Action.UPDATE, instance=item,
+                field_name="due_date",
+                old_value=f"{old_due:%d.%m.%Y}", new_value=f"{item.due_date:%d.%m.%Y}",
+                comment="Пункт графика",
+            )
+     if old_amount != item.planned_amount:
+        log_action(
+                action=AuditLog.Action.UPDATE, instance=item,
+                field_name="planned_amount",
+                old_value=old_amount, new_value=item.planned_amount,
+                amount=item.planned_amount,
+                comment="Пункт графика",
+            )
     messages.success(request, "Пункт графика обновлён.")
     return redirect("crm:case_detail", case_id=case_id)
 
@@ -1762,13 +1881,15 @@ def schedule_item_delete(request, item_id):
         return redirect("crm:case_detail", case_id=case_id)
 
     old = f"{item.due_date:%d.%m.%Y} · {item.planned_amount} ₽"
-    item.delete()
-
     log_action(
-        action=AuditLog.Action.DELETE, instance=plan, field_name="schedule",
-        old_value=old, new_value="",
-        comment="Удалён пункт графика платежей",
+        action=AuditLog.Action.DELETE, instance=item,
+        field_name="schedule_item",
+        old_value=f"{item.planned_amount} ₽ на {item.due_date:%d.%m.%Y}",
+        amount=item.planned_amount,
+        comment="Пункт графика удалён",
     )
+    item.delete()
+    item.delete()
     messages.success(request, "Пункт графика удалён.")
     return redirect("crm:case_detail", case_id=case_id)
 
@@ -2008,6 +2129,8 @@ def manager_report(request):
             "next_task": next_by_case.get(c.id),
         })
 
+
+
     return render(request, "crm/manager_report.html", {
         "title": "Отчёт руководителя",
         "start_date": start_date,
@@ -2018,7 +2141,7 @@ def manager_report(request):
         "statuses": CuratorCase.Status.choices,
         "summary": summary,
         "curator_rows": curator_rows,
-        "detail_rows": detail_rows,
+        "detail_rows": detail_rows
     })
 
 
@@ -2178,6 +2301,13 @@ def home(request):
                 "percent": round(fact / ump.plan_amount * 100) if ump and ump.plan_amount else 0,
                 "overdue": Task.objects.filter(case__curator=u, status=Task.TaskStatus.PENDING, due_date__lt=now).count(),
             })
+        
+        deviations = collect_deviations()
+        deviation_summary = [
+            (label, len(deviations[key])) for key, label in DEVIATION_LABELS
+        ]
+        ctx.update({"deviation_summary": deviation_summary})
+
         ctx.update({
             "stages": stages,
             "conv": round(agr / pres * 100) if pres else 0,
@@ -2244,8 +2374,11 @@ def doc_check_create(request):
         checked_by=request.user,
     )
     log_action(
-        action=AuditLog.Action.CREATE, instance=check, field_name="status",
-        new_value=check.get_status_display(), comment="Проверка документов",
+        action=AuditLog.Action.CREATE, instance=check,
+        field_name="status",
+        new_value=check.get_status_display()
+                  + (f": {check.get_discrepancy_type_display()}" if check.discrepancy_type else ""),
+        comment="Проверка документов",
     )
 
     if status == DocumentCheck.Status.DISCREPANCY and case.curator:
@@ -2267,6 +2400,7 @@ def doc_check_create(request):
 def case_next_visit(request, case_id):
     """Дата и комментарий следующего визита по КПЛ."""
     case = get_object_or_404(CuratorCase, id=case_id)
+    touch_case(case)
     if request.method == "POST":
         old = f"{case.next_control_date or '—'} | {case.next_visit_comment or '—'}"
         case.next_control_date = parse_date(request.POST.get("next_control_date", "")) or case.next_control_date
@@ -2318,8 +2452,10 @@ def work_order_create(request, plan_id):
         return redirect(back)
 
     log_action(
-        action=AuditLog.Action.CREATE, instance=plan, field_name="work_order",
-        new_value=f"№{wo.number}, {amount} ₽ от {closed_date:%d.%m.%Y}",
+        action=AuditLog.Action.CREATE, instance=wo,
+        field_name="work_order",
+        new_value=f"№{wo.number}, {wo.amount} ₽ от {wo.closed_date:%d.%m.%Y}",
+        amount=wo.amount,
         comment="Закрыт наряд на лечение",
     )
     messages.success(request, f"Наряд №{wo.number} на {amount} ₽ закрыт.")
@@ -2336,12 +2472,14 @@ def work_order_delete(request, wo_id):
 
     if request.method == "POST":
         old = f"{wo.amount} ₽ от {wo.closed_date:%d.%m.%Y}"
-        wo.delete()
         log_action(
-            action=AuditLog.Action.DELETE, instance=plan, field_name="work_order",
-            old_value=old, new_value="",
+            action=AuditLog.Action.DELETE, instance=wo,
+            field_name="work_order",
+            old_value=f"№{wo.number}, {wo.amount} ₽ от {wo.closed_date:%d.%m.%Y}",
+            amount=wo.amount,
             comment="Наряд удалён",
         )
+        wo.delete()
         messages.success(request, "Наряд удалён.")
     return redirect(back)
 
@@ -2373,12 +2511,7 @@ def patient_detail(request, patient_id):
     cases = CuratorCase.objects.filter(plan__patient=patient).select_related("curator").order_by("-created_at")
     
     # История из AuditLog (последние 50 записей по пациенту)
-    patient_logs = AuditLog.objects.filter(
-        Q(model_name="Patient", object_id=str(patient.id)) |
-        Q(model_name="Contract", object_id__in=[str(c.id) for c in contracts]) |
-        Q(model_name="TreatmentPlan", object_id__in=[str(p.id) for p in plans]) |
-        Q(model_name="CuratorCase", object_id__in=[str(c.id) for c in cases])
-    ).order_by("-created_at")[:50]
+        patient_logs = AuditLog.objects.filter(patient=patient).select_related("actor", "owner")[:100]
     
     return render(request, "crm/patient_detail.html", {
         "title": f"{patient.last_name} {patient.first_name}",
@@ -2388,3 +2521,161 @@ def patient_detail(request, patient_id):
         "cases": cases,
         "audit_logs": patient_logs,
     })
+
+
+def touch_case(case):
+    """Отметить активность по КПЛ (ТЗ гл.6, контроль бездействия)."""
+    CuratorCase.objects.filter(pk=case.pk).update(last_activity_at=timezone.now())
+
+
+DEVIATION_LABELS = [
+    ("no_next_task", "Нет следующей задачи"),
+    ("overdue_tasks", "Просроченные задачи"),
+    ("overdue_payments", "Просроченные платежи по графику"),
+    ("no_activity", "Нет активности по КПЛ"),
+    ("long_stage", "Долгое нахождение на этапе"),
+    ("agreed_no_start", "Согласованный план без старта лечения"),
+    ("stopped_treatment", "Остановленное лечение"),
+    ("no_next_visit", "Нет следующего визита"),
+    ("doc_discrepancy", "Расхождения документов"),
+]
+
+
+def collect_deviations(curator=None):
+    """ТЗ гл.6: автоматический контроль отклонений по активным КПЛ."""
+    now = timezone.now()
+    today = now.date()
+    t_inact = get_threshold("INACTIVITY_DAYS")
+    t_stage = get_threshold("STAGE_DAYS")
+    t_agreed = get_threshold("AGREED_NO_START_DAYS")
+    t_stop = get_threshold("STOPPED_TREATMENT_DAYS")
+    t_visit = get_threshold("NEXT_VISIT_OVERDUE_DAYS")
+    t_pay = get_threshold("PAYMENT_OVERDUE_DAYS")
+
+    qs = CuratorCase.objects.filter(status__in=ACTIVE_STATUSES).select_related(
+        "curator", "plan", "patient"
+    )
+    if curator:
+        qs = qs.filter(curator=curator)
+
+    dev = {key: [] for key, _ in DEVIATION_LABELS}
+
+    for case in qs:
+        has_future = case.tasks.filter(
+            status=Task.TaskStatus.PENDING, due_date__date__gte=today
+        ).exists()
+
+        if not has_future:
+            dev["no_next_task"].append(case)
+        if case.tasks.filter(status=Task.TaskStatus.PENDING, due_date__lt=now).exists():
+            dev["overdue_tasks"].append(case)
+        if any(
+            item.is_overdue and (today - item.due_date).days >= t_pay
+            for item in case.plan.schedule.all()
+        ):
+            dev["overdue_payments"].append(case)
+        if case.last_activity_at and (now - case.last_activity_at).days >= t_inact:
+            dev["no_activity"].append(case)
+        if case.status_changed_at and (now - case.status_changed_at).days >= t_stage:
+            dev["long_stage"].append(case)
+        if (
+            case.status == CuratorCase.Status.AGREED
+            and case.plan.agreement_date
+            and (today - case.plan.agreement_date).days >= t_agreed
+        ):
+            dev["agreed_no_start"].append(case)
+        if (
+            case.status == CuratorCase.Status.IN_PROGRESS
+            and not has_future
+            and case.status_changed_at
+            and (now - case.status_changed_at).days >= t_stop
+        ):
+            dev["stopped_treatment"].append(case)
+        if case.status == CuratorCase.Status.IN_PROGRESS and (
+            case.next_control_date is None
+            or case.next_control_date < today - timedelta(days=t_visit)
+        ):
+            dev["no_next_visit"].append(case)
+        last_check = case.document_checks.first()
+        if docs_state(case) != "План и график подписаны" or (
+            last_check and last_check.status == DocumentCheck.Status.DISCREPANCY
+        ):
+            dev["doc_discrepancy"].append(case)
+
+    return dev
+
+
+@login_required
+def settings_view(request):
+    if request.user.role != CustomUser.Role.ADMIN:
+        messages.error(request, "Раздел доступен только администратору.")
+        return redirect("crm:home")
+
+    for key, value, desc in DEFAULT_THRESHOLDS:
+        get_threshold(key)  # гарантирует существование строк
+
+    if request.method == "POST":
+        for row in SystemSetting.objects.all():
+            raw = request.POST.get(row.key)
+            if raw is not None and raw.isdigit():
+                old = row.value
+                row.value = int(raw)
+                row.save(update_fields=["value"])
+                if old != row.value:
+                    log_action(
+                        action=AuditLog.Action.UPDATE, instance=row,
+                        field_name=row.key, old_value=str(old), new_value=str(row.value),
+                        comment="Изменение пороговой настройки",
+                    )
+        messages.success(request, "Пороговые настройки сохранены.")
+        return redirect("crm:settings")
+
+    return render(request, "crm/settings.html", {
+        "title": "Настройки",
+        "settings_rows": SystemSetting.objects.order_by("key"),
+    })
+
+@manager_required
+def motivation_schemes(request):
+    """Реестр моделей мотивации: ставки и даты действия (ТЗ гл.8)."""
+    if request.method == "POST":
+        scheme = MotivationScheme.objects.create(
+            name=request.POST.get("name", "").strip() or "Модель без названия",
+            valid_from=parse_date(request.POST.get("valid_from", "")) or timezone.now().date(),
+            bonus1_rate=_to_decimal(request.POST.get("bonus1_rate", "0.007"), 4),
+            bonus2_rate=_to_decimal(request.POST.get("bonus2_rate", "0.002"), 4),
+            under100_penalty_rate=_to_decimal(request.POST.get("under100_penalty_rate", "1"), 2),
+            over110_bonus_rate=_to_decimal(request.POST.get("over110_bonus_rate", "0.2"), 2),
+            threshold_mid=_to_decimal(request.POST.get("threshold_mid", "100"), 2),
+            threshold_high=_to_decimal(request.POST.get("threshold_high", "110"), 2),
+            daily_rate=_to_decimal(request.POST.get("daily_rate", "1000"), 2),
+            comment=request.POST.get("comment", "").strip(),
+        )
+        log_action(
+            action=AuditLog.Action.CREATE, instance=scheme,
+            field_name="scheme", new_value=str(scheme),
+            comment="Создана модель мотивации",
+        )
+        messages.success(request, f"Модель «{scheme.name}» создана.")
+        return redirect("crm:motivation_schemes")
+
+    return render(request, "crm/motivation_schemes.html", {
+        "title": "Модели мотивации",
+        "schemes": MotivationScheme.objects.all(),
+    })
+
+@manager_required
+def case_reassign(request, case_id):
+    """Смена ответственного куратора (ТЗ гл.11) — только руководитель."""
+    case = get_object_or_404(CuratorCase, id=case_id)
+    if request.method == "POST":
+        new_curator = get_object_or_404(CustomUser, id=request.POST.get("curator_id"))
+        old = case.curator
+        if old != new_curator:
+            case.curator = new_curator
+            case.save(update_fields=["curator"])
+            log_action(AuditLog.Action.REASSIGN, case, field_name="curator",
+                       old_value=str(old), new_value=str(new_curator),
+                       comment="Смена ответственного куратора")
+            messages.success(request, f"Ответственный изменён: {new_curator}.")
+    return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id}))

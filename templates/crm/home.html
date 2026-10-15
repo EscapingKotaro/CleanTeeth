@@ -121,18 +121,14 @@
 
     <section class="dg-panel">
         <h2 style="margin-bottom:6px;">Контроль отдела</h2>
-        {% if od_tasks_count %}
-        <div class="dg-alert">
-            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <div><p>{{ od_tasks_count }} просроченных задач</p><p class="dg-muted">У {{ od_tasks_curators }} кураторов</p></div>
+        <a href="{% url 'crm:team_control' %}" style="text-decoration:none;">Подробнее</a>
         </div>
-        {% endif %}
-        {% if pending_checks %}
-        <div class="dg-alert">
-            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-4"/><path d="M12 10h.01"/></svg>
-            <div><p>{{ pending_checks }} проверки документов</p><p class="dg-muted">Ожидают управляющую</p></div>
+        {% for label, cnt in deviation_summary %}
+        <div class="dg-alert" style="{% if cnt %}border-left:3px solid var(--dg-warn);{% endif %}margin-top:8px;">
+            <div style="flex:1;"><p>{{ label }}</p></div>
+            <b style="{% if cnt %}color:var(--dg-warn);{% else %}color:var(--dg-green);{% endif %}">{{ cnt }}</b>
         </div>
-        {% endif %}
+        {% endfor %}
     </section>
 
     <section class="dg-panel" style="grid-column:1/-1;">

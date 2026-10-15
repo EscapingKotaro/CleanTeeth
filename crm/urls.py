@@ -74,5 +74,5 @@ urlpatterns = [
     path("plans/<int:plan_id>/work-orders/create/", views.work_order_create, name="work_order_create"),
     path("work-orders/<int:wo_id>/delete/", views.work_order_delete, name="work_order_delete"),
 
-
+    path("manager/motivation/schemes/", views.motivation_schemes, name="motivation_schemes"),
 ]

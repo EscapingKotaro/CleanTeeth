@@ -111,7 +111,11 @@
                     <div style="display:grid;gap:10px;">
                         <div>
                             <p class="dg-muted">ФИО</p>
-                            <p style="font-size:16px;font-weight:500;margin:4px 0 0;">{{ case.patient.last_name }} {{ case.patient.first_name }} {{ case.patient.middle_name }}</p>
+                            <p style="font-size:16px;font-weight:500;margin:4px 0 0;">
+                                <a href="{% url 'crm:patient_detail' case.patient.id %}" style="color:inherit;">
+                                    {{ case.patient.last_name }} {{ case.patient.first_name }} {{ case.patient.middle_name }}
+                                </a>
+                            </p>
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                             <div>

@@ -40,6 +40,7 @@ urlpatterns = [
 
     # ═══════════ ПАЦИЕНТЫ И ДОГОВОРЫ (все роли) ═══════════
     path("patients/", views.patients_board, name="patients_board"),          # доска сопровождений
+    path("patients/<int:patient_id>/", views.patient_detail, name="patient_detail"),  # карточка пациента
     path("patients/manage/", views.patients_list, name="patients_list"),     # справочник/CRUD
     path("patients/manage/create/", views.patient_create, name="patient_create"),
     path("patients/manage/<int:patient_id>/update/", views.patient_update, name="patient_update"),

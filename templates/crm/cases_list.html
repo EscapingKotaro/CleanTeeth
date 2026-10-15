@@ -49,7 +49,7 @@
                 {% for case in cases %}
                 <tr class="dg-clickable" onclick="window.location.href='{% url 'crm:case_detail' case.id %}'">
                     <td>
-                        <div style="font-weight:500;">{{ case.patient.last_name }} {{ case.patient.first_name }}</div>
+                        <div><a href="{% url 'crm:patient_detail' case.patient.id %}" style="font-weight:500;">{{ case.patient.last_name }} {{ case.patient.first_name }}</a></div>
                         <div class="dg-muted">{{ case.patient.phone }}</div>
                     </td>
                     <td class="dg-muted">#{{ case.id }}</td>
@@ -117,6 +117,15 @@
                         <option value="ADVANCE">План с авансом</option>
                         <option value="FACT">Без аванса / лечение по факту</option>
                     </select>
+                </label>
+                                <label class="dg-muted" style="display:grid;gap:6px;">Договор
+                    <select name="contract_id">
+                        <option value="">Без договора</option>
+                        {% for c in contracts %}
+                        <option value="{{ c.id }}">№{{ c.number }} от {{ c.date|date:"d.m.Y" }} ({{ c.get_status_display }})</option>
+                        {% endfor %}
+                    </select>
+                    <span style="font-size:11px;">Выберите действующий договор пациента или оставьте пустым.</span>
                 </label>
                 <label class="dg-muted" style="display:grid;gap:6px;">Ответственный куратор
                     <select name="curator_id">

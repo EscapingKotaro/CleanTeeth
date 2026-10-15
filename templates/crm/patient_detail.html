@@ -1,0 +1,181 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ title }} · Dento CRM{% endblock %}
+
+{% block content %}
+<div x-data="{ tab: 'card' }">
+
+    <div class="dg-heading">
+        <div>
+            <div class="dg-tag">Карточка пациента</div>
+            <h1>{{ patient.last_name }} {{ patient.first_name }} {{ patient.middle_name }}</h1>
+            <p class="dg-muted">{{ patient.phone }} · {% if patient.birth_date %}{{ patient.birth_date|date:"d.m.Y" }}{% else %}Дата рождения не указана{% endif %}</p>
+        </div>
+        <a href="{% url 'crm:patient_update' patient.id %}" class="btn">Редактировать</a>
+    </div>
+
+    <!-- Табы -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+        <button type="button" @click="tab = 'card'" :class="tab === 'card' ? 'btn-primary' : ''">Карточка</button>
+        <button type="button" @click="tab = 'contracts'" :class="tab === 'contracts' ? 'btn-primary' : ''">Договоры ({{ contracts.count }})</button>
+        <button type="button" @click="tab = 'plans'" :class="tab === 'plans' ? 'btn-primary' : ''">Планы лечения ({{ plans.count }})</button>
+        <button type="button" @click="tab = 'cases'" :class="tab === 'cases' ? 'btn-primary' : ''">Сопровождения ({{ cases.count }})</button>
+        <button type="button" @click="tab = 'history'" :class="tab === 'history' ? 'btn-primary' : ''">История</button>
+    </div>
+
+    <!-- КАРТОЧКА -->
+    <section class="dg-panel" x-show="tab === 'card'">
+        <div class="dg-panelhead"><h2>Основная информация</h2></div>
+        <div style="display:grid;gap:14px;">
+            <div>
+                <p class="dg-muted">ФИО</p>
+                <p style="font-size:16px;font-weight:500;margin:4px 0 0;">{{ patient.last_name }} {{ patient.first_name }} {{ patient.middle_name }}</p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                    <p class="dg-muted">Телефон</p>
+                    <p style="margin:4px 0 0;">{{ patient.phone }}</p>
+                </div>
+                <div>
+                    <p class="dg-muted">Дата рождения</p>
+                    <p style="margin:4px 0 0;">{{ patient.birth_date|date:"d.m.Y"|default:"Не указана" }}</p>
+                </div>
+            </div>
+            {% if patient.comment %}
+            <div>
+                <p class="dg-muted">Комментарий</p>
+                <p style="margin:4px 0 0;padding:10px;background:var(--dg-soft);border-radius:8px;white-space:pre-line;">{{ patient.comment }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ДОГОВОРЫ -->
+    <section class="dg-panel" x-show="tab === 'contracts'">
+        <div class="dg-panelhead">
+            <h2>Договоры</h2>
+            <a href="{% url 'crm:contract_create' patient.id %}" class="btn-primary">+ Новый договор</a>
+        </div>
+        {% if contracts %}
+        <table class="dg-table">
+            <thead>
+                <tr><th>Номер</th><th>Дата</th><th>Статус</th><th>Комментарий</th></tr>
+            </thead>
+            <tbody>
+                {% for c in contracts %}
+                <tr>
+                    <td style="font-weight:500;">№{{ c.number }}</td>
+                    <td>{{ c.date|date:"d.m.Y" }}</td>
+                    <td>
+                        <span class="dg-badge {% if c.status == 'ACTIVE' %}b-green{% elif c.status == 'CLOSED' %}b-gray{% endif %}">
+                            {{ c.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="dg-muted">{{ c.comment|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="dg-muted">Договоров нет</p>
+        {% endif %}
+    </section>
+
+    <!-- ПЛАНЫ ЛЕЧЕНИЯ -->
+    <section class="dg-panel" x-show="tab === 'plans'">
+        <div class="dg-panelhead"><h2>Планы лечения</h2></div>
+        {% if plans %}
+        <table class="dg-table">
+            <thead>
+                <tr><th>ID</th><th>Врач</th><th>Сумма</th><th>Договор</th><th>Создан</th></tr>
+            </thead>
+            <tbody>
+                {% for p in plans %}
+                <tr>
+                    <td style="font-weight:500;">#{{ p.id }}</td>
+                    <td>{{ p.doctor.get_full_name|default:"Не назначен" }}</td>
+                    <td>{{ p.agreed_sum|floatformat:0 }} ₽</td>
+                    <td>
+                        {% if p.contract %}
+                        <span class="dg-badge b-blue">№{{ p.contract.number }}</span>
+                        {% else %}
+                        <span class="dg-muted">Без договора</span>
+                        {% endif %}
+                    </td>
+                    <td class="dg-muted">{{ p.created_at|date:"d.m.Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="dg-muted">Планов лечения нет</p>
+        {% endif %}
+    </section>
+
+    <!-- СОПРОВОЖДЕНИЯ (КПЛ) -->
+    <section class="dg-panel" x-show="tab === 'cases'">
+        <div class="dg-panelhead"><h2>Кураторские сопровождения</h2></div>
+        {% if cases %}
+        <table class="dg-table">
+            <thead>
+                <tr><th>КПЛ</th><th>Куратор</th><th>Этап</th><th>Сумма</th><th>Создан</th></tr>
+            </thead>
+            <tbody>
+                {% for c in cases %}
+                <tr style="cursor:pointer;" onclick="window.location.href='{% url 'crm:case_detail' c.id %}'">
+                    <td style="font-weight:500;">#{{ c.id }}</td>
+                    <td>{{ c.curator.get_full_name|default:c.curator.username }}</td>
+                    <td>
+                        <span class="dg-badge {% if c.status == 'LOST' %}b-red{% elif c.status == 'COMPLETED' %}b-gray{% endif %}">
+                            {{ c.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ c.plan.agreed_sum|floatformat:0 }} ₽</td>
+                    <td class="dg-muted">{{ c.created_at|date:"d.m.Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="dg-muted">Сопровождений нет</p>
+        {% endif %}
+    </section>
+
+    <!-- ИСТОРИЯ -->
+    <section class="dg-panel" x-show="tab === 'history'">
+        <div class="dg-panelhead"><h2>История изменений</h2></div>
+        {% if audit_logs %}
+        <table class="dg-table dg-table-sm">
+            <thead>
+                <tr><th>Когда</th><th>Кто</th><th>Действие</th><th>Объект</th><th>Детали</th></tr>
+            </thead>
+            <tbody>
+                {% for log in audit_logs %}
+                <tr>
+                    <td class="dg-muted">{{ log.created_at|date:"d.m.Y H:i" }}</td>
+                    <td>{{ log.actor.get_full_name|default:log.actor.username }}</td>
+                    <td>
+                        <span class="dg-badge
+                            {% if log.action == 'CREATE' %}b-green
+                            {% elif log.action == 'UPDATE' %}b-blue
+                            {% elif log.action == 'DELETE' %}b-red{% endif %}">
+                            {{ log.get_action_display }}
+                        </span>
+                    </td>
+                    <td class="dg-muted">{{ log.model_name }}</td>
+                    <td>
+                        {% if log.field_name %}{{ log.field_name }}: {% endif %}
+                        {% if log.old_value %}{{ log.old_value }} → {% endif %}
+                        {{ log.new_value|default:"—"}}
+                        {% if log.comment %}<br><span class="dg-muted">{{ log.comment }}</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="dg-muted">Истории пока нет</p>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}

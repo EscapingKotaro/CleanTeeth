@@ -225,6 +225,12 @@ class TreatmentPlan(models.Model):
     # В поля модели:
     is_schedule_signed = models.BooleanField("График платежей подписан", default=False)
 
+    contract = models.ForeignKey(
+        "Contract", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="plans",
+        verbose_name="Договор",
+    )
+
     # --- Финансовые свойства ---
     @property
     def advance_paid(self):

@@ -320,7 +320,7 @@ def cases_list(request):
     queryset = queryset.select_related("patient", "plan", "curator")
 
     return render(request, "crm/cases_list.html", {
-        "title": "Кейсы",
+        "title": "КПЛ",
         "cases": queryset,
         "statuses": CuratorCase.Status.choices,
         "current_status": status_filter,
@@ -331,6 +331,9 @@ def cases_list(request):
         "curators": CustomUser.objects.filter(
             role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
         ),
+        "contracts": Contract.objects.filter(
+            patient__in=patients, status=Contract.Status.ACTIVE
+        ).order_by("-date")[:100],
     })
 
 STATUS_TO_MODAL = {
@@ -592,52 +595,37 @@ def _to_decimal(value):
 
 @login_required
 def plan_create(request):
-    """
-    Создаёт план лечения и ОДНОВРЕМЕННО кураторский кейс,
-    связывая пациент + план + куратор (по умолчанию — тот, кто создаёт).
-    """
-    if request.method != "POST":
-        return redirect("crm:cases_list")
-
-    patient_id = request.POST.get("patient_id")
-    if not patient_id:
-        messages.error(request, "Не выбран пациент. План не создан.")
-        return redirect("crm:cases_list")
-
-    with transaction.atomic():
-        # 1. Создаём план лечения
+    if request.method == "POST":
+        patient_id = request.POST.get("patient_id")
+        patient = get_object_or_404(Patient, id=patient_id)
+        
         plan = TreatmentPlan.objects.create(
-            patient_id=patient_id,
+            patient=patient,
             doctor_id=request.POST.get("doctor_id") or None,
-            initial_sum=_to_decimal(request.POST.get("initial_sum")),
-            presentation_sum=_to_decimal(request.POST.get("presentation_sum")),
-            agreed_sum=_to_decimal(request.POST.get("agreed_sum")),
+            initial_sum=_to_decimal(request.POST.get("initial_sum", 0)),
+            presentation_sum=_to_decimal(request.POST.get("presentation_sum", 0)),
+            agreed_sum=_to_decimal(request.POST.get("agreed_sum", 0)),
             plan_type=request.POST.get("plan_type", ""),
         )
-
-        # 2. Куратор: по умолчанию тот, кто создаёт план
+        
+        # Связь с договором (если выбран)
+        contract_id = request.POST.get("contract_id")
+        if contract_id:
+            contract = get_object_or_404(Contract, id=contract_id, patient=patient)
+            plan.contract = contract
+            plan.save(update_fields=["contract"])
+        
+        # Создание кейса
         curator_id = request.POST.get("curator_id") or request.user.id
-
-        # 3. Создаём кейс и связываем всё вместе
         case = CuratorCase.objects.create(
-            patient=plan.patient,
             plan=plan,
             curator_id=curator_id,
             status=CuratorCase.Status.TRANSFERRED,
         )
-
-        # Автоматизация ТЗ №18: первая задача при создании кейса
-        Task.objects.create(
-            case=case,
-            task_type=Task.TaskType.CONTACT,
-            description="Связаться с пациентом и презентовать план лечения",
-            due_date=timezone.now() + timedelta(days=1),
-            assignee_id=curator_id,
-            priority=Task.Priority.HIGH,
-        )
-
-    messages.success(request, f"План #{plan.id} и кейс #{case.id} созданы.")
-    return redirect("crm:cases_list")
+        
+        log_action(AuditLog.Action.CREATE, case, "case", "", f"#{case.id}", "Создан КПЛ")
+        messages.success(request, f"План и КПЛ созданы.")
+        return redirect("crm:case_detail", case_id=case.id)
 
 
 def _parse_dt(value):
@@ -722,7 +710,7 @@ def _apply_status_transition(case, new_status, post, user):
                 plan.plan_type = plan_type
                 plan.agreement_date = plan.agreement_date or today
                 plan.save(update_fields=["agreed_sum", "plan_type", "agreement_date"])
-                ensure_service_contract(case.patient)
+             #   ensure_service_contract(case.patient)
                 if next_step:
                     Task.objects.create(
                         case=case,
@@ -2267,3 +2255,33 @@ def next_workorder_number(d):
     else:
         n = 1
     return f"{prefix}{n:04d}"
+
+
+
+
+@login_required
+def patient_detail(request, patient_id):
+    """Карточка пациента: связанные объекты и история."""
+    patient = get_object_or_404(Patient, id=patient_id)
+    
+    # Связанные объекты
+    contracts = patient.contracts.order_by("-date", "-id")
+    plans = TreatmentPlan.objects.filter(patient=patient).select_related("doctor", "contract").order_by("-id")
+    cases = CuratorCase.objects.filter(plan__patient=patient).select_related("curator").order_by("-created_at")
+    
+    # История из AuditLog (последние 50 записей по пациенту)
+    patient_logs = AuditLog.objects.filter(
+        Q(model_name="Patient", object_id=str(patient.id)) |
+        Q(model_name="Contract", object_id__in=[str(c.id) for c in contracts]) |
+        Q(model_name="TreatmentPlan", object_id__in=[str(p.id) for p in plans]) |
+        Q(model_name="CuratorCase", object_id__in=[str(c.id) for c in cases])
+    ).order_by("-created_at")[:50]
+    
+    return render(request, "crm/patient_detail.html", {
+        "title": f"{patient.last_name} {patient.first_name}",
+        "patient": patient,
+        "contracts": contracts,
+        "plans": plans,
+        "cases": cases,
+        "audit_logs": patient_logs,
+    })

@@ -319,21 +319,34 @@ def cases_list(request):
     queryset = queryset.order_by(sort_by if sort_by in allowed_sorts else "-created_at")
     queryset = queryset.select_related("patient", "plan", "curator")
 
+    # Данные для модалки создания плана
+    patients = Patient.objects.all().order_by("last_name")[:200]
+
+    active_contracts = (
+        Contract.objects.filter(status=Contract.Status.ACTIVE)
+        .select_related("patient")
+        .order_by("-date")
+    )
+    contracts_by_patient = {}
+    for c in active_contracts:
+        contracts_by_patient.setdefault(c.patient_id, []).append({
+            "id": c.id,
+            "label": f"№{c.number} от {c.date:%d.%m.%Y}",
+        })
+
     return render(request, "crm/cases_list.html", {
-        "title": "КПЛ",
+        "title": "Кейсы",
         "cases": queryset,
         "statuses": CuratorCase.Status.choices,
         "current_status": status_filter,
         "current_sort": sort_by,
         "current_mine": mine_only,
-        "patients": Patient.objects.all().order_by("last_name")[:200],
+        "patients": patients,
+        "contracts_json": json.dumps(contracts_by_patient, ensure_ascii=False),
         "doctors": Doctor.objects.filter(is_active=True).order_by("last_name"),
         "curators": CustomUser.objects.filter(
             role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
         ),
-        "contracts": Contract.objects.filter(
-            patient__in=patients, status=Contract.Status.ACTIVE
-        ).order_by("-date")[:100],
     })
 
 STATUS_TO_MODAL = {
@@ -396,6 +409,15 @@ def case_detail(request, case_id):
             "is_optional": s == CuratorCase.Status.IN_DECISION,
         })
 
+    # Направления с текущими суммами — для модалки с живым счётчиком
+    amount_map = {d.direction: d.amount for d in case.plan.directions.all()}
+    directions_ctx = [
+        (v, l, amount_map.get(v, Decimal("0")))
+        for v, l in PlanDirection.Direction.choices
+    ]
+
+    active_contract = case.patient.contracts.order_by("-date", "-id").first()
+
     active_contract = case.patient.contracts.order_by("-date", "-id").first()
     contract_history = case.patient.contracts.order_by("-date", "-id")[1:]
 
@@ -422,6 +444,7 @@ def case_detail(request, case_id):
         "contract_history": contract_history,
         "is_owner": is_owner,
         "can_delete_case": can_delete_case,
+        "directions": directions_ctx,
     })
 
 
@@ -921,11 +944,7 @@ def doctors_list(request):
     search_params.pop("page", None)
     search_params = search_params.urlencode()
 
-    amount_map = {d.direction: d.amount for d in case.plan.directions.all()}
-    directions_ctx = [
-        (v, l, amount_map.get(v, Decimal("0")))
-        for v, l in PlanDirection.Direction.choices
-    ]
+
 
     return render(request, "crm/doctors_list.html", {
         "title": "Врачи",

@@ -819,24 +819,99 @@ def _apply_status_transition(case, new_status, post, user):
 
 @login_required
 def case_change_status(request, case_id):
-    case = get_object_or_404(
-        CuratorCase.objects.select_related("plan", "curator", "patient"), id=case_id
-    )
+    """Смена статуса КПЛ с сохранением доп. полей для IN_DECISION и LOST."""
+    case = get_object_or_404(CuratorCase, id=case_id)
     if request.method != "POST":
         return redirect("crm:case_detail", case_id=case.id)
 
     new_status = request.POST.get("status")
-    errors = _apply_status_transition(case, new_status, request.POST, request.user)
+    if new_status not in dict(CuratorCase.Status.choices):
+        messages.error(request, "Некорректный статус.")
+        return redirect("crm:case_detail", case_id=case.id)
 
-    if errors:
-        for e in errors:
-            messages.error(request, e)
-    else:
-        case.status = new_status
-        case.save()
-        messages.success(request, f"Статус изменён: «{case.get_status_display()}».")
+    old_status = case.status
+    case.status = new_status
 
-    return redirect("crm:case_detail", case_id=case.id)
+    # Специфичные поля для IN_DECISION
+    if new_status == CuratorCase.Status.IN_DECISION:
+        case.decision_reason = request.POST.get("decision_reason", "").strip()
+        case.decision_comment = request.POST.get("decision_comment", "").strip()
+        case.next_action_type = request.POST.get("next_action_type", "")
+        next_action_date_str = request.POST.get("next_action_date", "")
+        if next_action_date_str:
+            try:
+                case.next_action_date = datetime.fromisoformat(next_action_date_str)
+            except ValueError:
+                messages.warning(request, "Некорректная дата следующего действия.")
+
+    # Специфичные поля для LOST
+    if new_status == CuratorCase.Status.LOST:
+        lost_date_str = request.POST.get("lost_date", "")
+        if lost_date_str:
+            case.lost_date = parse_date(lost_date_str)
+        case.lost_reason_id = request.POST.get("lost_reason") or None
+        case.lost_potential_sum = _to_decimal(request.POST.get("lost_potential_sum", 0))
+        case.lost_comment = request.POST.get("lost_comment", "").strip()
+
+    # Специфичные поля для AGREED
+    if new_status == CuratorCase.Status.AGREED:
+        case.plan.agreed_sum = _to_decimal(request.POST.get("agreed_sum", 0))
+        case.plan.plan_type = request.POST.get("plan_type", "")
+        case.plan.agreement_date = timezone.now().date()
+        case.plan.save(update_fields=["agreed_sum", "plan_type", "agreement_date"])
+
+        # Создание задачи из "Дальнейший шаг"
+        next_step = request.POST.get("next_step", "").strip()
+        if next_step:
+            Task.objects.create(
+                case=case,
+                task_type=Task.TaskType.OTHER,
+                description=next_step,
+                due_date=timezone.now() + timedelta(days=1),
+                assignee=case.curator,
+                priority=Task.Priority.MEDIUM,
+            )
+
+    # Специфичные поля для PRESENTED
+    if new_status == CuratorCase.Status.PRESENTED:
+        pres_date_str = request.POST.get("presentation_date", "")
+        if pres_date_str:
+            case.plan.presentation_date = parse_date(pres_date_str)
+        case.plan.presentation_result = request.POST.get("presentation_result", "").strip()
+        case.plan.save(update_fields=["presentation_date", "presentation_result"])
+
+    # Специфичные поля для IN_PROGRESS
+    if new_status == CuratorCase.Status.IN_PROGRESS:
+        next_control_str = request.POST.get("next_control_date", "")
+        if next_control_str:
+            case.next_control_date = parse_date(next_control_str)
+        # Создание задачи контроля
+        if case.next_control_date:
+            Task.objects.create(
+                case=case,
+                task_type=Task.TaskType.NEXT_STAGE,
+                description="Контроль следующего визита",
+                due_date=datetime.combine(case.next_control_date, time(9, 0)),
+                assignee=case.curator,
+                priority=Task.Priority.MEDIUM,
+            )
+
+    # Завершение лечения — отмена активных задач
+    if new_status == CuratorCase.Status.COMPLETED:
+        case.tasks.filter(status=Task.TaskStatus.PENDING).update(
+            status=Task.TaskStatus.CANCELLED,
+            result="Отменено при завершении лечения",
+        )
+
+    case.save()
+
+    log_action(
+        action=AuditLog.Action.UPDATE, instance=case,
+        field_name="status", old_value=old_status, new_value=new_status,
+        comment=f"Смена статуса: {dict(CuratorCase.Status.choices).get(old_status)} → {dict(CuratorCase.Status.choices).get(new_status)}",
+    )
+    messages.success(request, f"Статус изменён на «{dict(CuratorCase.Status.choices).get(new_status)}».")
+    return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id}))
 
 
 @login_required

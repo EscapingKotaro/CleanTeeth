@@ -396,8 +396,8 @@ class CuratorCase(models.Model):
     next_action_date = models.DateTimeField("Дата следующего действия", null=True, blank=True)
 
 
-    status_changed_at = models.DateTimeField("Когда сменился статус", auto_now_add=True)
-    last_activity_at = models.DateTimeField("Последняя активность", auto_now_add=True)
+    status_changed_at = models.DateTimeField("Когда сменился статус", null=True, blank=True, auto_now_add=True)
+    last_activity_at = models.DateTimeField("Последняя активность", null=True, blank=True, auto_now_add=True)
 
     # Статус «Лечение завершено»
     completed_at = models.DateField("Дата закрытия кейса", null=True, blank=True)

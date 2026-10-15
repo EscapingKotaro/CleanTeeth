@@ -921,11 +921,17 @@ def doctors_list(request):
     search_params.pop("page", None)
     search_params = search_params.urlencode()
 
+    amount_map = {d.direction: d.amount for d in case.plan.directions.all()}
+    directions_ctx = [
+        (v, l, amount_map.get(v, Decimal("0")))
+        for v, l in PlanDirection.Direction.choices
+    ]
+
     return render(request, "crm/doctors_list.html", {
         "title": "Врачи",
         "page_obj": page_obj,
         "total_count": paginator.count,
-        "directions": Direction.choices,
+        "directions": directions_ctx,
         "query": query,
         "direction_filter": direction_filter,
         "status_filter": status_filter,

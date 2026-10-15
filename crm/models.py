@@ -11,11 +11,10 @@ from decimal import Decimal
 # ============================================================
 
 class Direction(models.TextChoices):
-    """Четыре фиксированных направления лечения"""
     THERAPY = "THERAPY", "Терапия"
-    IMPLANTATION = "IMPLANT", "Имплантация и хирургия"
-    ORTHOPEDICS = "ORTHO", "Ортопедия"
-    ORTHODONTICS = "ORTHO_D", "Ортодонтия"
+    IMPLANT = "IMPLANT", "Имплантация и хирургия"
+    ORTHOPED = "ORTHOPED", "Ортопедия"
+    ORTHODONT = "ORTHODONT", "Ортодонтия"
 
 
 
@@ -193,8 +192,8 @@ class TreatmentPlan(models.Model):
     """Конкретный план лечения пациента."""
 
     class PlanType(models.TextChoices):
-        WITH_ADVANCE = "ADVANCE", "План с авансом"
-        WITHOUT_ADVANCE = "FACT", "Без аванса / лечение по факту"
+        WITH_ADVANCE = "ADVANCE", "С авансом"
+        WITHOUT_ADVANCE = "FACT", "Лечение по факту"
 
     patient = models.ForeignKey(
         Patient, on_delete=models.CASCADE, related_name="plans", verbose_name="Пациент"
@@ -271,13 +270,15 @@ class TreatmentPlan(models.Model):
     # --- Чек-лист «план готов к работе» (п.5.3) ---
     @property
     def is_ready_for_work(self):
-        if not self.agreement_date or not self.is_signed_by_patient or not self.plan_type:
+        if not self.agreement_date:
+            return False
+        if not self.is_signed_by_patient:
             return False
         if self.plan_type == self.PlanType.WITH_ADVANCE:
-            # План с авансом: нужен аванс + подписанный график
             return self.has_advance and self.is_schedule_signed
-        # Лечение по факту: согласован + подписан
-        return True
+        if self.plan_type == self.PlanType.BY_FACT:
+            return True
+        return False
 
     @property
     def workorders_total(self):
@@ -733,6 +734,12 @@ class AuditLog(models.Model):
 
 
 class PlanDirection(models.Model):
+    
+    class Direction(models.TextChoices):
+        THERAPY = "THERAPY", "Терапия"
+        IMPLANT = "IMPLANT", "Имплантация и хирургия"
+        ORTHOPED = "ORTHOPED", "Ортопедия"
+        ORTHODONT = "ORTHODONT", "Ортодонтия"
     """Сумма по одному из 4 фиксированных направлений внутри плана."""
     plan = models.ForeignKey(
         TreatmentPlan, on_delete=models.CASCADE, related_name="directions", verbose_name="План"

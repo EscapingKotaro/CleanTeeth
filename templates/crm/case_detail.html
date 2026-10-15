@@ -214,6 +214,8 @@
                             {% if p.plan_type %}<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--dg-green);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>{% else %}<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--dg-muted);"><circle cx="12" cy="12" r="9"/></svg>{% endif %}
                             Тип: {{ p.get_plan_type_display|default:"не выбран" }}
                         </li>
+
+                        {% if case.plan.plan_type == 'ADVANCE' %}
                         <li style="display:flex;align-items:center;gap:8px;color:{% if p.has_advance %}var(--dg-text){% else %}var(--dg-muted){% endif %};">
                             {% if p.has_advance %}<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--dg-green);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>{% else %}<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--dg-muted);"><circle cx="12" cy="12" r="9"/></svg>{% endif %}
                             Аванс {% if p.has_advance %}({{ p.advance_paid|floatformat:0 }} ₽){% endif %}
@@ -222,6 +224,12 @@
                             {% if p.is_schedule_signed %}<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--dg-green);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>{% else %}<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--dg-muted);"><circle cx="12" cy="12" r="9"/></svg>{% endif %}
                             График подписан
                         </li>
+                                            {% else %}
+                    <li class="flex items-center" style="color:var(--dg-muted);">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--dg-muted);margin-right:8px;"><circle cx="12" cy="12" r="9"/></svg>
+                        Лечение по факту: аванс и график не требуются
+                    </li>
+                    {% endif %}
                         {% endwith %}
                         <li style="display:flex;align-items:center;gap:8px;padding-top:10px;margin-top:10px;border-top:1px solid var(--dg-line);font-weight:500;
                             {% if case.plan.is_ready_for_work %}color:var(--dg-green);{% else %}color:var(--dg-warn);{% endif %}">

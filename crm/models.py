@@ -274,6 +274,12 @@ class TreatmentPlan(models.Model):
         return True
 
     @property
+    def workorders_total(self):
+        """Сумма закрытых нарядов по КПЛ."""
+        from django.db.models import Sum
+        return self.work_orders.aggregate(s=Sum("amount"))["s"] or Decimal("0")
+
+    @property
     def schedule_total(self):
         """Сумма всех пунктов графика."""
         from django.db.models import Sum
@@ -812,3 +818,30 @@ class DocumentCheck(models.Model):
 
     def __str__(self):
         return f"{self.case} · {self.get_status_display()}"
+
+class WorkOrder(models.Model):
+    """
+    Наряд на лечение: закрытый объём выполненной работы в деньгах.
+    НЕ связан с платежами: пациент мог внести 500 ₽, а наряд за день закрыт на 100 ₽.
+    """
+    plan = models.ForeignKey(
+        TreatmentPlan, on_delete=models.CASCADE,
+        related_name="work_orders", verbose_name="КПЛ (план)",
+    )
+    amount = models.DecimalField("Сумма наряда", max_digits=10, decimal_places=2)
+    closed_date = models.DateField("Дата закрытия")
+    comment = models.TextField("Комментарий", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="work_orders", verbose_name="Кто закрыл",
+    )
+    created_at = models.DateTimeField("Создан", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Наряд на лечение"
+        verbose_name_plural = "Наряды на лечение"
+        ordering = ["-closed_date", "-id"]
+
+    def __str__(self):
+        return f"Наряд {self.amount} ₽ от {self.closed_date:%d.%m.%Y}"
+

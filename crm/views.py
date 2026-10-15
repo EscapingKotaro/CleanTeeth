@@ -19,6 +19,8 @@ from decimal import Decimal
 from .audit import log_action
 from django.urls import reverse
 
+import json
+
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
 class CustomLoginView(auth_views.LoginView):

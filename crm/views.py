@@ -2511,7 +2511,7 @@ def patient_detail(request, patient_id):
     cases = CuratorCase.objects.filter(plan__patient=patient).select_related("curator").order_by("-created_at")
     
     # История из AuditLog (последние 50 записей по пациенту)
-        patient_logs = AuditLog.objects.filter(patient=patient).select_related("actor", "owner")[:100]
+    patient_logs = AuditLog.objects.filter(patient=patient).select_related("actor", "owner")[:100]
     
     return render(request, "crm/patient_detail.html", {
         "title": f"{patient.last_name} {patient.first_name}",

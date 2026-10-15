@@ -447,6 +447,7 @@ def case_detail(request, case_id):
         "is_owner": is_owner,
         "can_delete_case": can_delete_case,
         "directions": directions_ctx,
+        "payment_categories": Payment.PaymentCategory.choices,
     })
 
 
@@ -1527,9 +1528,10 @@ def payment_create(request, plan_id):
         Payment.objects.create(
             plan=plan,
             amount=amount,
-            payment_date=payment_date,
-            is_advance=is_advance,
-            schedule_item=schedule_item,
+            payment_date=parse_date(request.POST.get("payment_date", "")) or timezone.now().date(),
+            payment_category=request.POST.get("payment_category", Payment.PaymentCategory.CARD),
+            is_advance=request.POST.get("is_advance") == "on",
+            schedule_item_id=request.POST.get("schedule_item_id") or None,
             comment=request.POST.get("comment", "").strip(),
         )
         # Если привязан к пункту графика — зачитываем в счёт него

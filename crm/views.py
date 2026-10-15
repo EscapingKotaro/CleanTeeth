@@ -1855,7 +1855,7 @@ def schedule_item_update(request, item_id):
                 old_value=f"{old_due:%d.%m.%Y}", new_value=f"{item.due_date:%d.%m.%Y}",
                 comment="Пункт графика",
             )
-     if old_amount != item.planned_amount:
+    if old_amount != item.planned_amount:
         log_action(
                 action=AuditLog.Action.UPDATE, instance=item,
                 field_name="planned_amount",

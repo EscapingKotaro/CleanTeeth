@@ -3,7 +3,7 @@
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div x-data="{ openPlanModal: false }">
+<div x-data="{ openPlanModal: false, planPatient: '', contractsByPatient: {{ contracts_json|safe }} }">
 
     <div class="dg-heading">
         <div>
@@ -85,12 +85,21 @@
             <p class="dg-muted">Вместе с планом будет автоматически создан кураторский кейс.</p>
             <div style="display:grid;gap:12px;margin-top:12px;">
                 <label class="dg-muted" style="display:grid;gap:6px;">Пациент <span style="color:var(--dg-warn);">*</span>
-                    <select name="patient_id" required>
+                    <select name="patient_id" required x-model="planPatient">
                         <option value="">Выберите пациента</option>
                         {% for p in patients %}
                         <option value="{{ p.id }}">{{ p.last_name }} {{ p.first_name }} · {{ p.phone }}</option>
                         {% endfor %}
                     </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Договор
+                    <select name="contract_id">
+                        <option value="">Без договора</option>
+                        <template x-for="c in (contractsByPatient[planPatient] || [])" :key="c.id">
+                            <option :value="c.id" x-text="c.label"></option>
+                        </template>
+                    </select>
+                    <span style="font-size:11px;">Действующий договор выбранного пациента. Пусто — план без договора.</span>
                 </label>
                 <label class="dg-muted" style="display:grid;gap:6px;">Врач
                     <select name="doctor_id">
@@ -118,15 +127,7 @@
                         <option value="FACT">Без аванса / лечение по факту</option>
                     </select>
                 </label>
-                                <label class="dg-muted" style="display:grid;gap:6px;">Договор
-                    <select name="contract_id">
-                        <option value="">Без договора</option>
-                        {% for c in contracts %}
-                        <option value="{{ c.id }}">№{{ c.number }} от {{ c.date|date:"d.m.Y" }} ({{ c.get_status_display }})</option>
-                        {% endfor %}
-                    </select>
-                    <span style="font-size:11px;">Выберите действующий договор пациента или оставьте пустым.</span>
-                </label>
+
                 <label class="dg-muted" style="display:grid;gap:6px;">Ответственный куратор
                     <select name="curator_id">
                         {% for u in curators %}

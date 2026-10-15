@@ -1541,6 +1541,7 @@ def monthly_plan_upsert(request):
             "plan_amount": _to_decimal(request.POST.get("plan_amount")),
             "adjustments": _to_decimal(request.POST.get("adjustments")),
             "workorders_amount": _to_decimal(request.POST.get("workorders_amount")),
+            "workorders_adjustment": _to_decimal(request.POST.get("workorders_adjustment", 0)),
             "set_by": request.user,
             "work_days": int(request.POST.get("work_days", 0) or 0),
         },
@@ -2187,3 +2188,82 @@ def case_next_visit(request, case_id):
         )
         messages.success(request, "Следующий визит сохранён.")
     return redirect(_next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id}))
+
+
+@login_required
+def work_order_create(request, plan_id):
+    """Закрыть наряд на лечение (независимо от платежей)."""
+    plan = get_object_or_404(TreatmentPlan, id=plan_id)
+    case_id = plan.cases.first().id if plan.cases.exists() else None
+    back = _next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case_id})
+
+    if request.method != "POST":
+        return redirect(back)
+
+    amount = _to_decimal(request.POST.get("amount", 0))
+    closed_date = parse_date(request.POST.get("closed_date", "")) or timezone.now().date()
+
+    if amount <= 0:
+        messages.error(request, "Сумма наряда должна быть больше нуля.")
+        return redirect(back)
+
+    wo = None
+    for _ in range(5):
+        try:
+            wo = WorkOrder.objects.create(
+                plan=plan,
+                number=next_workorder_number(closed_date),
+                amount=amount,
+                closed_date=closed_date,
+                comment=request.POST.get("comment", "").strip(),
+                created_by=request.user,
+            )
+            break
+        except IntegrityError:
+            continue
+    if wo is None:
+        messages.error(request, "Не удалось присвоить номер наряда, попробуйте ещё раз.")
+        return redirect(back)
+
+    log_action(
+        action=AuditLog.Action.CREATE, instance=plan, field_name="work_order",
+        new_value=f"№{wo.number}, {amount} ₽ от {closed_date:%d.%m.%Y}",
+        comment="Закрыт наряд на лечение",
+    )
+    messages.success(request, f"Наряд №{wo.number} на {amount} ₽ закрыт.")
+    messages.success(request, f"Наряд на {amount|floatformat:0} ₽ закрыт.")
+    return redirect(back)
+
+
+@manager_required
+def work_order_delete(request, wo_id):
+    """Удалить ошибочный наряд (только управляющая/админ, с аудитом)."""
+    wo = get_object_or_404(WorkOrder.objects.select_related("plan"), id=wo_id)
+    plan = wo.plan
+    case_id = plan.cases.first().id if plan.cases.exists() else None
+    back = _next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case_id})
+
+    if request.method == "POST":
+        old = f"{wo.amount} ₽ от {wo.closed_date:%d.%m.%Y}"
+        wo.delete()
+        log_action(
+            action=AuditLog.Action.DELETE, instance=plan, field_name="work_order",
+            old_value=old, new_value="",
+            comment="Наряд удалён",
+        )
+        messages.success(request, "Наряд удалён.")
+    return redirect(back)
+
+
+def next_workorder_number(d):
+    """Авто-нумерация нарядов: Н-<год>-<порядковый>. Позже номер может приходить из iDent."""
+    prefix = f"Н-{d.year}-"
+    last = WorkOrder.objects.filter(number__startswith=prefix).order_by("-number").first()
+    if last:
+        try:
+            n = int(last.number[len(prefix):]) + 1
+        except ValueError:
+            n = WorkOrder.objects.filter(number__startswith=prefix).count() + 1
+    else:
+        n = 1
+    return f"{prefix}{n:04d}"

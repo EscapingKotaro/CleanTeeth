@@ -26,6 +26,7 @@ urlpatterns = [
     path("cases/<int:case_id>/task/create/", views.task_create, name="task_create"),
     path("tasks/<int:task_id>/complete/", views.task_complete, name="task_complete"),
     path("tasks/<int:task_id>/postpone/", views.task_postpone, name="task_postpone"),
+    path("cases/<int:case_id>/next-visit/", views.case_next_visit, name="case_next_visit"),
 
     path("plans/create/", views.plan_create, name="plan_create"),
     path("plans/<int:plan_id>/update/", views.plan_update, name="plan_update"),
@@ -68,4 +69,9 @@ urlpatterns = [
 
     # ═══════════ ЗОНА /service/ — администрирование (только ADMIN) ═══════════
     path("service/settings/", views.settings_view, name="settings"),
+
+    path("plans/<int:plan_id>/work-orders/create/", views.work_order_create, name="work_order_create"),
+    path("work-orders/<int:wo_id>/delete/", views.work_order_delete, name="work_order_delete"),
+
+
 ]

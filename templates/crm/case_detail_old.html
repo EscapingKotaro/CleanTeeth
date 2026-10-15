@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="space-y-6"
-     x-data="{ modal: null, taskId: null, editItem: {}, deleteItem: {}, editContract: {}, editPatient: {}, editPlan: {}, toggleTarget: {} }">
+     x-data="{ modal: null, taskId: null, editItem: {}, deleteItem: {}, editContract: {}, editPatient: {}, editPlan: {}, toggleTarget: {},  deleteWO: {}  }">
 
     <!-- Хлебные крошки -->
     <nav class="flex items-center space-x-2 text-sm text-sky-600">
@@ -127,6 +127,8 @@
                                 class="px-3 py-1.5 bg-sky-500 text-white rounded-lg text-xs font-medium hover:bg-sky-600">
                             + Платёж
                         </button>
+                        
+                        <button type="button" @click="modal = 'work_order'">+ Наряд</button>
                     </div>
                 </div>
 
@@ -148,6 +150,10 @@
                         <p class="text-xs text-yellow-600">Остаток</p>
                         <p class="text-sm font-bold text-yellow-900">{{ case.plan.remaining|floatformat:0 }} ₽</p>
                     </div>
+                                    <div class="dg-panel" style="margin:0;">
+                    <p class="dg-muted">Закрыто нарядами</p>
+                    <div class="dg-value" style="color:var(--dg-purple);">{{ case.plan.workorders_total|floatformat:0 }} ₽</div>
+                </div>
                 </div>
 
                 <!-- Направления -->
@@ -250,6 +256,33 @@
                     <p class="text-xs text-sky-500">Платежей нет</p>
                     {% endif %}
                 </div>
+
+                            <!-- Наряды на лечение -->
+            <div style="margin-top:18px;">
+                <div class="dg-panelhead"><h2>Закрытые наряды</h2></div>
+                {% if case.plan.work_orders.all %}
+                <div style="display:grid;gap:4px;">
+                    {% for wo in case.plan.work_orders.all %}
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px;background:var(--dg-soft);border-radius:6px;font-size:13px;">
+                        <span>
+                            🧾 <b>{{ wo.amount|floatformat:0 }} ₽</b> · {{ wo.closed_date|date:"d.m.Y" }}
+                            {% if wo.comment %}<span class="dg-muted">· {{ wo.comment }}</span>{% endif %}
+                        </span>
+                        <span style="display:flex;align-items:center;gap:8px;">
+                            <span class="dg-muted">{{ wo.created_by.get_full_name|default:wo.created_by.username|default:"—" }}</span>
+                            {% if user.role == 'MANAGER' or user.role == 'ADMIN' %}
+                            <button type="button"
+                                    @click="deleteWO = { id: {{ wo.id }}, label: '{{ wo.amount|floatformat:0 }} ₽ от {{ wo.closed_date|date:"d.m.Y" }}' }; modal = 'delete_work_order'"
+                                    style="padding:2px 8px;border-color:var(--dg-warn);color:var(--dg-warn);">×</button>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="dg-muted">Наряды не закрыты</p>
+                {% endif %}
+            </div>
             </div>
 
         </div>
@@ -491,13 +524,6 @@
         };
     </script>
 
-    <!-- Модалки (все твои существующие модалки без изменений) -->
-    <!-- ... оставь все модалки как были ... -->
-
-
-    <!-- ============================================================ -->
-    <!-- МОДАЛКИ ПЕРЕХОДОВ ПО ВОРОНКЕ -->
-    <!-- ============================================================ -->
 
     <!-- Общий бэкдроп -->
     <div x-show="modal" x-cloak class="fixed inset-0 z-40 bg-sky-900 bg-opacity-50" @click="modal = null"></div>
@@ -1138,6 +1164,47 @@
             <div class="flex justify-end gap-2 mt-6">
                 <button type="button" @click="modal = null" class="px-4 py-2 border border-sky-300 text-sky-700 rounded-lg text-sm">Отмена</button>
                 <button type="submit" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600">Перенести</button>
+            </div>
+        </form>
+    </div>
+
+        <!-- НАРЯД НА ЛЕЧЕНИЕ -->
+    <div x-show="modal === 'work_order'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" action="{% url 'crm:work_order_create' case.plan.id %}" class="dg-panel"
+              style="max-width:440px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
+            <div class="dg-panelhead"><h2>Закрыть наряд</h2></div>
+            <p class="dg-muted">Наряд — объём выполненного лечения, независимо от оплат: можно внести 500 ₽, а наряд закрыть на 100 ₽.</p>
+            <div style="display:grid;gap:12px;margin-top:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Сумма, ₽ <span style="color:var(--dg-warn);">*</span>
+                    <input type="number" step="0.01" name="amount" required>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Дата закрытия
+                    <input type="date" name="closed_date" value="{% now 'Y-m-d' %}">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                    <input type="text" name="comment" placeholder="Какие работы закрыты...">
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Закрыть наряд</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- УДАЛИТЬ НАРЯД -->
+    <div x-show="modal === 'delete_work_order'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" :action="'{% url 'crm:work_order_delete' 0 %}'.replace('/0/', '/' + deleteWO.id + '/')" class="dg-panel"
+              style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
+            <div class="dg-panelhead"><h2>Удалить наряд?</h2></div>
+            <p>Наряд «<span x-text="deleteWO.label"></span>» будет удалён. Действие попадёт в журнал.</p>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" style="border-color:var(--dg-warn);color:var(--dg-warn);">Удалить</button>
             </div>
         </form>
     </div>

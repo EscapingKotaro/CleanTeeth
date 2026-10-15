@@ -26,7 +26,7 @@ def calculate_bonuses(monthly_plan):
     plan = monthly_plan.plan_amount or Decimal(0)
     k1 = monthly_plan.fact_amount or Decimal(0)
     kpl = monthly_plan.kpl_for_calc or Decimal(0)
-    workorders = monthly_plan.workorders_amount or Decimal(0)
+    workorders = monthly_plan.workorders_effective or Decimal(0)
 
     # Бонус 1 = 0,7% × Итого КПЛ для расчёта
     bonus_1 = BONUS_1_RATE * kpl

@@ -79,7 +79,9 @@
                 <tr><td class="dg-muted">Сумма К1 (согласованные планы)</td><td style="text-align:right;font-weight:500;">{{ monthly_plan.fact_amount|floatformat:0 }} ₽</td></tr>
                 <tr><td class="dg-muted">Корректировки (возвраты по КПЛ / мат. капитал)</td><td style="text-align:right;font-weight:500;">{{ monthly_plan.adjustments|floatformat:0 }} ₽</td></tr>
                 <tr style="background:var(--dg-soft);"><td>Итого КПЛ для расчёта</td><td style="text-align:right;font-weight:500;">{{ monthly_plan.kpl_for_calc|floatformat:0 }} ₽</td></tr>
-                <tr><td class="dg-muted">Итого заказ-нарядов</td><td style="text-align:right;font-weight:500;">{{ monthly_plan.workorders_amount|floatformat:0 }} ₽</td></tr>
+                                <tr><td class="dg-muted">Заказ-наряды (авто по нарядам)</td><td style="text-align:right;font-weight:500;">{{ monthly_plan.workorders_auto|floatformat:0 }} ₽</td></tr>
+                <tr><td class="dg-muted">Корректировка заказ-нарядов (вручную)</td><td style="text-align:right;font-weight:500;">{{ monthly_plan.workorders_adjustment|floatformat:0 }} ₽</td></tr>
+                <tr style="background:var(--dg-soft);"><td>Итого заказ-нарядов для расчёта</td><td style="text-align:right;font-weight:500;">{{ monthly_plan.workorders_effective|floatformat:0 }} ₽</td></tr>
                 <tr><td class="dg-muted">Бонус 1 <span style="font-size:11px;">(0,7% от КПЛ)</span></td><td style="text-align:right;font-weight:500;">{{ monthly_plan.bonus_1|floatformat:0 }} ₽</td></tr>
                 <tr><td class="dg-muted">Бонус 2 <span style="font-size:11px;">(0,2% от заказ-нарядов)</span></td><td style="text-align:right;font-weight:500;">{{ monthly_plan.bonus_2|floatformat:0 }} ₽</td></tr>
                 <tr>

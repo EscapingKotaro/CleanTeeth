@@ -490,6 +490,10 @@ class CuratorMonthlyPlan(models.Model):
     )
     workorders_amount = models.DecimalField(
         "Итого заказ-нарядов, ₽", max_digits=12, decimal_places=2, default=0,
+    ) # legacy_old
+        workorders_adjustment = models.DecimalField(
+        "Корректировка заказ-нарядов (вручную / наследие)",
+        max_digits=12, decimal_places=2, default=0,
     )
     work_days = models.PositiveIntegerField("Рабочих дней", default=0)
     set_by = models.ForeignKey(
@@ -514,6 +518,21 @@ class CuratorMonthlyPlan(models.Model):
         """К1 = сумма согласованных планов куратора за этот месяц (ТЗ п.11)."""
         from .views import compute_k1
         return compute_k1(self.curator, self.year, self.month)
+
+    @property
+    def workorders_auto(self):
+        """Сумма закрытых нарядов куратора за месяц (авто)."""
+        from django.db.models import Sum
+        plan_ids = TreatmentPlan.objects.filter(cases__curator=self.curator).distinct()
+        return WorkOrder.objects.filter(
+            plan__in=plan_ids,
+            closed_date__year=self.year, closed_date__month=self.month,
+        ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+
+    @property
+    def workorders_effective(self):
+        """Заказ-наряды для расчёта: авто + корректировка."""
+        return self.workorders_auto + (self.workorders_adjustment or Decimal("0"))
 
     @property
     def completion_percent(self):
@@ -836,6 +855,8 @@ class WorkOrder(models.Model):
         null=True, blank=True, related_name="work_orders", verbose_name="Кто закрыл",
     )
     created_at = models.DateTimeField("Создан", auto_now_add=True)
+
+    number = models.CharField("Номер наряда", max_length=32, unique=True, blank=True)
 
     class Meta:
         verbose_name = "Наряд на лечение"

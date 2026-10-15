@@ -2246,7 +2246,6 @@ def work_order_create(request, plan_id):
         comment="Закрыт наряд на лечение",
     )
     messages.success(request, f"Наряд №{wo.number} на {amount} ₽ закрыт.")
-    messages.success(request, f"Наряд на {amount|floatformat:0} ₽ закрыт.")
     return redirect(back)
 
 

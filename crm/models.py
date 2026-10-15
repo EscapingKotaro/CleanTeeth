@@ -799,28 +799,40 @@ class PaymentSchedule(models.Model):
 
 
 class Payment(models.Model):
-    """Фактическое движение денег по плану. Аванс — платёж с флагом."""
+    class PaymentCategory(models.TextChoices):
+        CASH = "CASH", "Наличные"
+        CARD = "CARD", "Карта"
+        TRANSFER = "TRANSFER", "Перевод"
+        ONLINE = "ONLINE", "Онлайн-оплата"
+        INSURANCE = "INSURANCE", "Страховая"
+        OTHER = "OTHER", "Другое"
+
     plan = models.ForeignKey(
-        TreatmentPlan, on_delete=models.CASCADE, related_name="payments", verbose_name="План"
+        TreatmentPlan, on_delete=models.CASCADE,
+        related_name="payments", verbose_name="План лечения",
     )
-    amount = models.DecimalField("Сумма", max_digits=12, decimal_places=2)
+    amount = models.DecimalField("Сумма", max_digits=10, decimal_places=2)
     payment_date = models.DateField("Дата оплаты")
+    payment_category = models.CharField(
+        "Категория оплаты", max_length=20,
+        choices=PaymentCategory.choices, default=PaymentCategory.CARD,
+    )
     is_advance = models.BooleanField("Это аванс", default=False)
     schedule_item = models.ForeignKey(
-        PaymentSchedule, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="payments", verbose_name="Пункт графика"
+        "PaymentSchedule", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="payments",
+        verbose_name="Пункт графика",
     )
     comment = models.TextField("Комментарий", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField("Создан", auto_now_add=True)
 
     class Meta:
         verbose_name = "Платёж"
         verbose_name_plural = "Платежи"
-        ordering = ["-payment_date"]
+        ordering = ["-payment_date", "-id"]
 
     def __str__(self):
-        kind = "Аванс" if self.is_advance else "Оплата"
-        return f"{kind} · {self.plan} · {self.amount} · {self.payment_date:%d.%m.%Y}"
+        return f"{self.amount} ₽ от {self.payment_date:%d.%m.%Y}"
         
 class DocumentCheck(models.Model):
     """Проверка документов по кейсу (реестр управляющей, ТЗ п.12)."""

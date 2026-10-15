@@ -417,7 +417,9 @@
                     {% for p in case.plan.payments.all|slice:":5" %}
                     <div style="display:flex;justify-content:space-between;padding:8px;background:var(--dg-soft);border-radius:6px;font-size:13px;">
                         <span>
-                            {% if p.is_advance %}🟢{% else %}💳{% endif %} {{ p.amount|floatformat:0 }} ₽ · {{ p.payment_date|date:"d.m.Y" }}
+                            {% if p.is_advance %}🟢 Аванс{% else %}💳{% endif %} 
+                            <b>{{ p.amount|floatformat:0 }} ₽</b> · {{ p.payment_date|date:"d.m.Y" }}
+                            <span class="dg-muted">· {{ p.get_payment_category_display }}</span>
                         </span>
                         {% if p.schedule_item %}<span class="dg-muted">к {{ p.schedule_item.due_date|date:"d.m.Y" }}</span>{% endif %}
                     </div>

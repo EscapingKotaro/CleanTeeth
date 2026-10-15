@@ -289,9 +289,3 @@ class AuditLogAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-
-@admin.register(WorkOrder)
-class WorkOrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "number", "plan", "amount", "closed_date", "created_by", "created_at")
-    list_select_related = ("plan", "created_by")
-    search_fields = ("number", "comment")

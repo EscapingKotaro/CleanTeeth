@@ -393,6 +393,8 @@ class CuratorCase(models.Model):
 
     # Статус «Лечение в процессе»
     next_control_date = models.DateField("Следующая контрольная дата", null=True, blank=True)
+    next_action_date = models.DateTimeField("Дата следующего действия", null=True, blank=True)
+
 
     # Статус «Лечение завершено»
     completed_at = models.DateField("Дата закрытия кейса", null=True, blank=True)

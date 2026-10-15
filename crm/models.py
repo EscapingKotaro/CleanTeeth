@@ -491,7 +491,7 @@ class CuratorMonthlyPlan(models.Model):
     workorders_amount = models.DecimalField(
         "Итого заказ-нарядов, ₽", max_digits=12, decimal_places=2, default=0,
     ) # legacy_old
-        workorders_adjustment = models.DecimalField(
+    workorders_adjustment = models.DecimalField(
         "Корректировка заказ-нарядов (вручную / наследие)",
         max_digits=12, decimal_places=2, default=0,
     )

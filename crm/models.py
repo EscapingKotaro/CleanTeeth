@@ -485,7 +485,52 @@ import calendar
 from datetime import date
 from decimal import Decimal
 
+class MotivationScheme(models.Model):
+    """
+    Версия модели мотивации с датой начала действия (ТЗ гл.8).
+    Исторические формулы разные, поэтому модель выбирается ВРУЧНУЮ
+    при назначении месячного плана — автоматически не подставляется.
+    """
+    name = models.CharField("Название модели", max_length=120)
+    valid_from = models.DateField("Действует с")
+    bonus1_rate = models.DecimalField(
+        "Бонус 1: доля от КПЛ", max_digits=6, decimal_places=4,
+        default=Decimal("0.0070"),
+    )
+    bonus2_rate = models.DecimalField(
+        "Бонус 2: доля от заказ-нарядов", max_digits=6, decimal_places=4,
+        default=Decimal("0.0020"),
+    )
+    under100_penalty_rate = models.DecimalField(
+        "Штраф при выполнении ниже границы: доля от Бонуса 1",
+        max_digits=4, decimal_places=2, default=Decimal("1.00"),
+    )
+    over110_bonus_rate = models.DecimalField(
+        "Надбавка при выполнении от верхней границы: доля от Бонуса 1",
+        max_digits=4, decimal_places=2, default=Decimal("0.20"),
+    )
+    threshold_mid = models.DecimalField(
+        "Нижняя граница выполнения, %", max_digits=5, decimal_places=2,
+        default=Decimal("100.00"),
+    )
+    threshold_high = models.DecimalField(
+        "Верхняя граница выполнения, %", max_digits=5, decimal_places=2,
+        default=Decimal("110.00"),
+    )
+    daily_rate = models.DecimalField(
+        "Ставка рабочего дня, ₽", max_digits=10, decimal_places=2,
+        default=Decimal("1000.00"),
+    )
+    comment = models.TextField("Примечание", blank=True)
+    created_at = models.DateTimeField("Создана", auto_now_add=True)
 
+    class Meta:
+        verbose_name = "Модель мотивации"
+        verbose_name_plural = "Модели мотивации"
+        ordering = ["-valid_from"]
+
+    def __str__(self):
+        return f"{self.name} (с {self.valid_from:%d.%m.%Y})"
 
 class CuratorMonthlyPlan(models.Model):
     """Индивидуальный месячный план куратора. Задаётся управляющей (ТЗ п.13)."""
@@ -965,49 +1010,3 @@ def get_threshold(key):
     return default
 
 
-class MotivationScheme(models.Model):
-    """
-    Версия модели мотивации с датой начала действия (ТЗ гл.8).
-    Исторические формулы разные, поэтому модель выбирается ВРУЧНУЮ
-    при назначении месячного плана — автоматически не подставляется.
-    """
-    name = models.CharField("Название модели", max_length=120)
-    valid_from = models.DateField("Действует с")
-    bonus1_rate = models.DecimalField(
-        "Бонус 1: доля от КПЛ", max_digits=6, decimal_places=4,
-        default=Decimal("0.0070"),
-    )
-    bonus2_rate = models.DecimalField(
-        "Бонус 2: доля от заказ-нарядов", max_digits=6, decimal_places=4,
-        default=Decimal("0.0020"),
-    )
-    under100_penalty_rate = models.DecimalField(
-        "Штраф при выполнении ниже границы: доля от Бонуса 1",
-        max_digits=4, decimal_places=2, default=Decimal("1.00"),
-    )
-    over110_bonus_rate = models.DecimalField(
-        "Надбавка при выполнении от верхней границы: доля от Бонуса 1",
-        max_digits=4, decimal_places=2, default=Decimal("0.20"),
-    )
-    threshold_mid = models.DecimalField(
-        "Нижняя граница выполнения, %", max_digits=5, decimal_places=2,
-        default=Decimal("100.00"),
-    )
-    threshold_high = models.DecimalField(
-        "Верхняя граница выполнения, %", max_digits=5, decimal_places=2,
-        default=Decimal("110.00"),
-    )
-    daily_rate = models.DecimalField(
-        "Ставка рабочего дня, ₽", max_digits=10, decimal_places=2,
-        default=Decimal("1000.00"),
-    )
-    comment = models.TextField("Примечание", blank=True)
-    created_at = models.DateTimeField("Создана", auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Модель мотивации"
-        verbose_name_plural = "Модели мотивации"
-        ordering = ["-valid_from"]
-
-    def __str__(self):
-        return f"{self.name} (с {self.valid_from:%d.%m.%Y})"

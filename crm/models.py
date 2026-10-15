@@ -396,6 +396,9 @@ class CuratorCase(models.Model):
     next_action_date = models.DateTimeField("Дата следующего действия", null=True, blank=True)
 
 
+    status_changed_at = models.DateTimeField("Когда сменился статус", auto_now_add=True)
+    last_activity_at = models.DateTimeField("Последняя активность", auto_now_add=True)
+
     # Статус «Лечение завершено»
     completed_at = models.DateField("Дата закрытия кейса", null=True, blank=True)
 
@@ -639,7 +642,9 @@ class Task(models.Model):
         NEXT_STAGE = "NEXT_STAGE", "Проконтролировать следующий этап"
         DELIVERY = "DELIVERY", "Сдача работы"
         FEEDBACK = "FEEDBACK", "Получить обратную связь"
+        PAYMENT = "PAYMENT", "Напомнить об оплате"
         OTHER = "OTHER", "Другое"
+        
 
     class TaskStatus(models.TextChoices):
         PENDING = "PENDING", "В ожидании"
@@ -769,6 +774,10 @@ class PaymentSchedule(models.Model):
     payment_date = models.DateField("Дата оплаты", null=True, blank=True)
     comment = models.TextField("Комментарий", blank=True)
     is_advance = models.BooleanField("Это аванс", default=False)
+    reminder_task = models.ForeignKey(
+        "Task", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="schedule_reminders", verbose_name="Задача-напоминание",
+    )
 
     class Meta:
         verbose_name = "Пункт графика платежей"
@@ -893,3 +902,39 @@ class WorkOrder(models.Model):
     def __str__(self):
         return f"Наряд {self.amount} ₽ от {self.closed_date:%d.%m.%Y}"
 
+
+DEFAULT_THRESHOLDS = [
+    ("INACTIVITY_DAYS", 7, "Дней без активности по КПЛ"),
+    ("STAGE_DAYS", 14, "Дней на одном этапе — считаем затянувшимся"),
+    ("AGREED_NO_START_DAYS", 7, "Дней в «План согласован» без старта лечения"),
+    ("STOPPED_TREATMENT_DAYS", 14, "Дней в «Лечении в процессе» без движения"),
+    ("NEXT_VISIT_OVERDUE_DAYS", 3, "Дней просрочки следующего визита"),
+    ("PAYMENT_OVERDUE_DAYS", 0, "Дней просрочки платежа для попадания в контроль"),
+]
+
+
+class SystemSetting(models.Model):
+    """Явные пороговые сроки контроля (ТЗ гл.6)."""
+    key = models.CharField("Ключ", max_length=64, unique=True)
+    value = models.PositiveIntegerField("Значение, дней")
+    description = models.CharField("Описание", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Пороговая настройка"
+        verbose_name_plural = "Пороговые настройки"
+        ordering = ["key"]
+
+    def __str__(self):
+        return f"{self.key} = {self.value}"
+
+
+def get_threshold(key):
+    row = SystemSetting.objects.filter(key=key).first()
+    if row:
+        return row.value
+    default = dict((k, v) for k, v, _ in DEFAULT_THRESHOLDS)[key]
+    SystemSetting.objects.create(
+        key=key, value=default,
+        description=dict((k, d) for k, _, d in DEFAULT_THRESHOLDS)[key],
+    )
+    return default

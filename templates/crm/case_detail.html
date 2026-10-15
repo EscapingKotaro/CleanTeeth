@@ -70,7 +70,20 @@
             <div style="margin-top:14px;padding:10px;background:rgba(148,101,45,.08);border-radius:8px;">
                 <p class="dg-muted" style="font-size:12px;">
                     <span style="font-weight:500;color:var(--dg-warn);">Причина:</span> {{ case.decision_reason }}
-                    {% if case.decision_comment %} · {{ case.decision_comment }}{% endif %}
+                    {% if case.decision_comment %}<br><span style="margin-top:4px;display:block;">{{ case.decision_comment }}</span>{% endif %}
+                    {% if case.next_action_date %}<br><span style="margin-top:4px;display:block;color:var(--dg-blue);">Следующее действие: {{ case.next_action_date|date:"d.m.Y H:i" }}</span>{% endif %}
+                </p>
+            </div>
+            {% endif %}
+
+                        {% if case.status == 'LOST' %}
+            <div style="margin-top:14px;padding:10px;background:rgba(179,54,47,.06);border-left:3px solid var(--dg-red);border-radius:8px;">
+                <p style="font-weight:500;color:var(--dg-red);margin-bottom:6px;">КПЛ закрыт как отказ</p>
+                <p class="dg-muted" style="font-size:12px;">
+                    Дата: {{ case.lost_date|date:"d.m.Y" }}<br>
+                    Причина: {{ case.lost_reason.title|default:"Не указана" }}<br>
+                    Потенциальная сумма: {{ case.lost_potential_sum|floatformat:0 }} ₽<br>
+                    {% if case.lost_comment %}Комментарий: {{ case.lost_comment }}{% endif %}
                 </p>
             </div>
             {% endif %}

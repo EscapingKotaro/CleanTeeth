@@ -75,4 +75,11 @@ urlpatterns = [
     path("work-orders/<int:wo_id>/delete/", views.work_order_delete, name="work_order_delete"),
 
     path("manager/motivation/schemes/", views.motivation_schemes, name="motivation_schemes"),
+    path("tasks/<int:task_id>/next/", views.task_next_create, name="task_next_create"),
+
+    path("registers/", views.registers, name="registers"),
+    path("registers/visit/create/", views.visit_create, name="visit_create"),
+    path("registers/adjustment/create/", views.adjustment_create, name="adjustment_create"),
+
+    path("manager/reports/export/", views.manager_report_export, name="manager_report_export"),
 ]

@@ -1,0 +1,283 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ title }} · Dento CRM{% endblock %}
+
+{% block content %}
+<div x-data="{ tab: 'payments', modal: null }">
+
+    <div class="dg-heading">
+        <div>
+            <div class="dg-tag">Кураторский отдел</div>
+            <h1>Реестры</h1>
+            <p class="dg-muted">Период: {{ start|date:"d.m.Y" }} — {{ end|date:"d.m.Y" }} · даты берём из события</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button type="button" @click="modal = 'visit'" class="btn">+ Приём</button>
+            <button type="button" @click="modal = 'adjustment'" class="btn">+ Корректировка</button>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <section class="dg-panel">
+        <form method="get" class="dg-toolbar">
+            <select name="period" onchange="this.form.submit()">
+                <option value="week" {% if period == 'week' %}selected{% endif %}>Неделя</option>
+                <option value="month" {% if period == 'month' %}selected{% endif %}>Месяц</option>
+                <option value="custom" {% if period == 'custom' %}selected{% endif %}>Произвольный</option>
+            </select>
+            <input type="date" name="from" value="{{ start|date:'Y-m-d' }}">
+            <input type="date" name="to" value="{{ end|date:'Y-m-d' }}">
+            <select name="curator" onchange="this.form.submit()">
+                <option value="">Все кураторы</option>
+                {% for u in curators %}
+                <option value="{{ u.id }}" {% if curator_id == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn-primary" style="margin-left:auto;">Показать</button>
+        </form>
+    </section>
+
+    <!-- Недельная и месячная статистика -->
+    <div class="dg-split">
+        <section class="dg-panel">
+            <div class="dg-panelhead"><h2>Неделя</h2></div>
+            <div class="dg-detail"><span class="dg-muted">Оплаты</span><span>{{ week_stats.paid|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Авансы</span><span>{{ week_stats.advances|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Выполнено лечение (наряды)</span><span>{{ week_stats.workorders|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Корректировки</span><span>{{ week_stats.adjustments|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Приёмы / Презентации / Согласования</span><span>{{ week_stats.visits }} / {{ week_stats.presentations }} / {{ week_stats.agreements }}</span></div>
+        </section>
+        <section class="dg-panel">
+            <div class="dg-panelhead"><h2>Месяц</h2></div>
+            <div class="dg-detail"><span class="dg-muted">Оплаты</span><span>{{ month_stats.paid|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Авансы</span><span>{{ month_stats.advances|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Выполнено лечение (наряды)</span><span>{{ month_stats.workorders|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Корректировки</span><span>{{ month_stats.adjustments|floatformat:0 }} ₽</span></div>
+            <div class="dg-detail"><span class="dg-muted">Приёмы / Презентации / Согласования</span><span>{{ month_stats.visits }} / {{ month_stats.presentations }} / {{ month_stats.agreements }}</span></div>
+        </section>
+    </div>
+
+    <!-- Табы реестров -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:16px 0;">
+        <button type="button" @click="tab = 'payments'" :class="tab === 'payments' ? 'btn-primary' : ''">Платежи</button>
+        <button type="button" @click="tab = 'schedule'" :class="tab === 'schedule' ? 'btn-primary' : ''">Платёжный календарь</button>
+        <button type="button" @click="tab = 'workorders'" :class="tab === 'workorders' ? 'btn-primary' : ''">Выполненное лечение</button>
+        <button type="button" @click="tab = 'contracts'" :class="tab === 'contracts' ? 'btn-primary' : ''">Договоры</button>
+        <button type="button" @click="tab = 'funnel'" :class="tab === 'funnel' ? 'btn-primary' : ''">Презентации и согласования</button>
+        <button type="button" @click="tab = 'visits'" :class="tab === 'visits' ? 'btn-primary' : ''">Приёмы</button>
+        <button type="button" @click="tab = 'adjustments'" :class="tab === 'adjustments' ? 'btn-primary' : ''">Возвраты и корректировки</button>
+    </div>
+
+    <section class="dg-panel" x-show="tab === 'payments'">
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Дата</th><th>Пациент</th><th>КПЛ</th><th>Сумма</th><th>Тип</th><th>Категория</th></tr></thead>
+            <tbody>
+                {% for p in payments %}
+                <tr>
+                    <td>{{ p.payment_date|date:"d.m.Y" }}</td>
+                    <td>{{ p.plan.patient.last_name }} {{ p.plan.patient.first_name }}</td>
+                    <td class="dg-muted">#{{ p.plan.cases.first.id }}</td>
+                    <td style="font-weight:500;">{{ p.amount|floatformat:0 }} ₽</td>
+                    <td>{% if p.is_advance %}<span class="dg-badge b-green">аванс</span>{% else %}<span class="dg-badge">платёж</span>{% endif %}</td>
+                    <td class="dg-muted">{{ p.get_payment_category_display }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="dg-muted">Платежей за период нет</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="dg-panel" x-show="tab === 'schedule'">
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Плановая дата</th><th>Пациент</th><th>План</th><th>Оплачено</th><th>Остаток</th><th>Статус</th></tr></thead>
+            <tbody>
+                {% for s in schedule %}
+                <tr>
+                    <td>{{ s.due_date|date:"d.m.Y" }}</td>
+                    <td>{{ s.plan.patient.last_name }} {{ s.plan.patient.first_name }}</td>
+                    <td>{{ s.planned_amount|floatformat:0 }} ₽</td>
+                    <td>{{ s.paid_amount|floatformat:0 }} ₽</td>
+                    <td>{{ s.remaining|floatformat:0 }} ₽</td>
+                    <td>{% if s.is_paid %}<span class="dg-badge b-green">✓</span>{% elif s.is_overdue %}<span class="dg-badge b-warn">просрочен</span>{% else %}<span class="dg-badge">ожидает</span>{% endif %}</td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="dg-muted">Плановых платежей за период нет</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="dg-panel" x-show="tab === 'workorders'">
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Наряд</th><th>Дата</th><th>Пациент</th><th>КПЛ</th><th>Сумма</th><th>Кто закрыл</th></tr></thead>
+            <tbody>
+                {% for w in workorders %}
+                <tr>
+                    <td>{{ w.number }}</td>
+                    <td>{{ w.closed_date|date:"d.m.Y" }}</td>
+                    <td>{{ w.plan.patient.last_name }} {{ w.plan.patient.first_name }}</td>
+                    <td class="dg-muted">#{{ w.plan.cases.first.id }}</td>
+                    <td style="font-weight:500;">{{ w.amount|floatformat:0 }} ₽</td>
+                    <td class="dg-muted">{{ w.created_by.get_full_name|default:w.created_by.username }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="dg-muted">Нарядов за период нет</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="dg-panel" x-show="tab === 'contracts'">
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Номер</th><th>Дата</th><th>Пациент</th><th>Статус</th></tr></thead>
+            <tbody>
+                {% for c in contracts %}
+                <tr>
+                    <td style="font-weight:500;">№{{ c.number }}</td>
+                    <td>{{ c.date|date:"d.m.Y" }}</td>
+                    <td>{{ c.patient.last_name }} {{ c.patient.first_name }}</td>
+                    <td><span class="dg-badge {% if c.status == 'ACTIVE' %}b-green{% elif c.status == 'CLOSED' %}b-gray{% endif %}">{{ c.get_status_display }}</span></td>
+                </tr>
+                {% empty %}<tr><td colspan="4" class="dg-muted">Договоров за период нет</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="dg-panel" x-show="tab === 'funnel'">
+        <div class="dg-panelhead"><h2>Презентации</h2></div>
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Дата презентации</th><th>Пациент</th><th>Сумма презентации</th></tr></thead>
+            <tbody>
+                {% for p in presentations %}
+                <tr><td>{{ p.presentation_date|date:"d.m.Y" }}</td><td>{{ p.patient.last_name }} {{ p.patient.first_name }}</td><td>{{ p.presentation_sum|floatformat:0 }} ₽</td></tr>
+                {% empty %}<tr><td colspan="3" class="dg-muted">Презентаций за период нет</td></tr>{% endfor %}
+            </tbody>
+        </table>
+        <div class="dg-panelhead" style="margin-top:18px;"><h2>Согласования</h2></div>
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Дата согласования</th><th>Пациент</th><th>Согласованная сумма</th></tr></thead>
+            <tbody>
+                {% for p in agreements %}
+                <tr><td>{{ p.agreement_date|date:"d.m.Y" }}</td><td>{{ p.patient.last_name }} {{ p.patient.first_name }}</td><td>{{ p.agreed_sum|floatformat:0 }} ₽</td></tr>
+                {% empty %}<tr><td colspan="3" class="dg-muted">Согласований за период нет</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="dg-panel" x-show="tab === 'visits'">
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Дата</th><th>Пациент</th><th>Категория</th><th>Диагностика</th><th>КПЛ</th></tr></thead>
+            <tbody>
+                {% for v in visits %}
+                <tr>
+                    <td>{{ v.visit_date|date:"d.m.Y" }}</td>
+                    <td>{{ v.patient.last_name }} {{ v.patient.first_name }}</td>
+                    <td><span class="dg-badge b-blue">{{ v.category|default:"—" }}</span></td>
+                    <td class="dg-muted">{{ v.diagnosis|default:"—"|truncatechars:60 }}</td>
+                    <td class="dg-muted">{% if v.case %}#{{ v.case.id }}{% else %}—{% endif %}</td>
+                </tr>
+                {% empty %}<tr><td colspan="5" class="dg-muted">Приёмов за период нет</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="dg-panel" x-show="tab === 'adjustments'">
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Дата</th><th>Пациент</th><th>Тип</th><th>Сумма</th><th>Комментарий</th></tr></thead>
+            <tbody>
+                {% for a in adjustments %}
+                <tr>
+                    <td>{{ a.event_date|date:"d.m.Y" }}</td>
+                    <td>{{ a.patient.last_name }} {{ a.patient.first_name }}</td>
+                    <td><span class="dg-badge {% if a.amount < 0 %}b-red{% else %}b-purple{% endif %}">{{ a.get_kind_display }}</span></td>
+                    <td style="font-weight:500;">{{ a.amount|floatformat:0 }} ₽</td>
+                    <td class="dg-muted">{{ a.comment|default:"—"|truncatechars:50 }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="5" class="dg-muted">Корректировок за период нет</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <!-- МОДАЛКА: ПРИЁМ -->
+    <div x-show="modal === 'visit'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" action="{% url 'crm:visit_create' %}" class="dg-panel"
+              style="max-width:520px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:registers' %}">
+            <div class="dg-panelhead"><h2>Записать приём</h2></div>
+            <div style="display:grid;gap:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Пациент <span style="color:var(--dg-warn);">*</span>
+                    <select name="patient_id" required>
+                        {% for p in patients %}<option value="{{ p.id }}">{{ p.last_name }} {{ p.first_name }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">КПЛ (если есть)
+                    <select name="case_id">
+                        <option value="">Без КПЛ</option>
+                        {% for c in cases_list %}<option value="{{ c.id }}">#{{ c.id }} · {{ c.patient.last_name }}</option>{% endfor %}
+                    </select>
+                </label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <label class="dg-muted" style="display:grid;gap:6px;">Дата приёма
+                        <input type="date" name="visit_date" value="{% now 'Y-m-d' %}">
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Категория посещения
+                        <select name="category_id">
+                            <option value="">—</option>
+                            {% for c in visit_categories %}<option value="{{ c.id }}">{{ c.title }}</option>{% endfor %}
+                        </select>
+                    </label>
+                </div>
+                <label class="dg-muted" style="display:grid;gap:6px;">Диагностика
+                    <textarea name="diagnosis" rows="2"></textarea>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                    <input type="text" name="comment">
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Записать</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- МОДАЛКА: КОРРЕКТИРОВКА -->
+    <div x-show="modal === 'adjustment'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" action="{% url 'crm:adjustment_create' %}" class="dg-panel"
+              style="max-width:520px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:registers' %}">
+            <div class="dg-panelhead"><h2>Возврат / корректировка</h2></div>
+            <div style="display:grid;gap:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Пациент <span style="color:var(--dg-warn);">*</span>
+                    <select name="patient_id" required>
+                        {% for p in patients %}<option value="{{ p.id }}">{{ p.last_name }} {{ p.first_name }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">КПЛ (если есть)
+                    <select name="case_id">
+                        <option value="">Без КПЛ</option>
+                        {% for c in cases_list %}<option value="{{ c.id }}">#{{ c.id }} · {{ c.patient.last_name }}</option>{% endfor %}
+                    </select>
+                </label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <label class="dg-muted" style="display:grid;gap:6px;">Тип
+                        <select name="kind">
+                            {% for value, label in adjustment_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                        </select>
+                    </label>
+                    <label class="dg-muted" style="display:grid;gap:6px;">Сумма (возврат — со минусом) <span style="color:var(--dg-warn);">*</span>
+                        <input type="number" step="0.01" name="amount" required placeholder="-5000">
+                    </label>
+                </div>
+                <label class="dg-muted" style="display:grid;gap:6px;">Дата события
+                    <input type="date" name="event_date" value="{% now 'Y-m-d' %}">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                    <input type="text" name="comment" placeholder="Основание...">
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Записать</button>
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

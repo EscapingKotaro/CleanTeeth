@@ -21,8 +21,6 @@
   --dg-green: #34795d;
   --dg-warn: #94652d;
   --dg-shadow: 0 5px 20px rgba(37,53,73,.045), inset 0 1px 0 rgba(255,255,255,.65);
-  --dg-bg-gradient: radial-gradient(ellipse at 85% 12%, rgba(181,196,209,.42), transparent 45%), 
-                    linear-gradient(135deg, #edf0f3, #e4e9ee);
   --font-sans: Inter, 'Segoe UI', system-ui, sans-serif;
   color-scheme: light;
   --dg-page: #f2f4f7;
@@ -41,8 +39,6 @@
   --dg-green: #9bceae;
   --dg-warn: #dfba85;
   --dg-shadow: 0 5px 20px rgba(0,0,0,.1), inset 0 1px 0 rgba(255,255,255,.06);
-  --dg-bg-gradient: radial-gradient(ellipse at 85% 12%, rgba(59,77,94,.35), transparent 50%), 
-                    linear-gradient(135deg, #19222b, #151b22);
   color-scheme: dark;
   --dg-page: #101317;
 }
@@ -65,11 +61,12 @@ body {
 .dg-frame {
   max-width: none;
   margin: 0;
-  height: 100vh;                 /* было: min-height */
-  border: 0;                     /* убираем рамку */
+  height: 100vh;
+  height: 100dvh;
+  border: 0;
   border-radius: 0;
   overflow: hidden;
-  background: var(--dg-page);    /* плоский цвет, без градиента */
+  background: var(--dg-page);      /* плоско, без градиентов */
   box-shadow: none;
 }
 
@@ -80,21 +77,24 @@ body {
 
 /* Grid: sidebar 185px + main */
 .dg-shell {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);  /* было: 185px */
-  height: 100vh;
+  display: block;                  /* grid больше не нужен: сайдбар fixed */
 }
 
 /* Sidebar */
 .dg-side {
-  padding: 27px 15px;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: 220px;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  padding: 27px 15px 15px;
+  background: #151a16;             /* серо-чёрный, в обеих темах */
+  color: #f0f2f5;
   border-right: 1px solid rgba(255,255,255,.08);
-  background: #151a16;           /* тёмно-серый как просили */
-  height: 100vh;
-  overflow-y: auto;              /* скролл внутри сайдбара если пунктов много */
-  color: #f0f2f5;                /* светлый текст на тёмном фоне */
+  overflow-y: auto;                /* свои пункты скроллит сам */
+  z-index: 50;
 }
 [data-theme="light"] .dg-side {
   background: #151a16;
@@ -195,23 +195,27 @@ body {
 
 /* Main area */
 .dg-main {
+  margin-left: 220px;
   min-width: 0;
-  padding: 22px 26px;
+  padding: 22px 26px 30px;
   height: 100vh;
-  overflow-y: auto;              /* скролл ТОЛЬКО здесь */
+  height: 100dvh;
+  overflow-y: auto;                /* прокручивается ТОЛЬКО контент */
+  overflow-x: hidden;              /* никакого горизонтального скролла страницы */
 }
 
 
 
 /* Panels */
 .dg-panel {
-  background: var(--dg-surface);
-  background-image: linear-gradient(145deg, rgba(255,255,255,.12), transparent 65%);
+  background: var(--dg-surface);   /* без background-image и бликов */
   border: 1px solid var(--dg-line);
   border-radius: 14px;
   box-shadow: var(--dg-shadow);
   padding: 22px;
   margin-bottom: 16px;
+  overflow-x: auto;                /* таблицы скроллятся внутри панели, не страницей */
+  min-width: 0;
 }
 [data-theme="dark"] .dg-panel {
   background-image: linear-gradient(145deg, rgba(255,255,255,.05), transparent 65%);
@@ -415,30 +419,66 @@ input:focus, select:focus, textarea:focus {
   min-width: 36px;
 }
 
-/* Responsive */
-@media (max-width: 800px) {
-  .dg-shell {
-    grid-template-columns: 70px 1fr;
-  }
-  .dg-side {
-    padding: 25px 10px;
-  }
-  .dg-brand {
-    padding: 0 5px 30px;
-  }
-  .dg-brand > span, .dg-nav button span, .dg-bottom {
-    display: none;
-  }
-  .dg-nav button {
-    justify-content: center;
-  }
-  .dg-main {
-    padding: 18px;
-  }
-  .dg-split {
-    grid-template-columns: 1fr;
-  }
+/* Страховка от горизонтального скролла везде */
+html, body { overflow-x: hidden; max-width: 100%; }
+.dg-toolbar > * { min-width: 0; max-width: 100%; }
+.dg-table td, .dg-table th { overflow-wrap: anywhere; }
+
+/* Двухколоночные раскладки складываются в одну */
+@media (max-width: 900px) {
+  .dg-split { grid-template-columns: 1fr; }
+  .dg-metrics-8 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dg-metrics-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Телефон: сайдбар уступает место нижней навигации */
+@media (max-width: 800px) {
+  .dg-side { display: none; }
+  .dg-main {
+    margin-left: 0;
+    padding: 16px 14px 84px;       /* место под нижнюю панель */
+  }
+  .dg-mobilebar { display: flex; }
+  .dg-metrics-8 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dg-value { font-size: 22px; }
+  .dp-schedule { grid-template-columns: 44px minmax(0, 1fr); }
+}
+
+/* Нижняя навигация (по умолчанию скрыта) */
+.dg-mobilebar {
+  display: none;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: #151a16;
+  border-top: 1px solid rgba(255,255,255,.08);
+  z-index: 60;
+  justify-content: space-around;
+  align-items: center;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+.dg-mobilebar a, .dg-mobilebar button {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 10px; border: 0; background: none; cursor: pointer;
+  color: rgba(240,242,245,.75); font-size: 10px; text-decoration: none;
+  border-radius: 8px;
+}
+.dg-mobilebar a.active, .dg-mobilebar button[aria-expanded="true"] {
+  color: #fff; background: rgba(90,125,152,.25);
+}
+.dg-mobilemenu {
+  position: fixed; left: 0; right: 0; bottom: 62px;
+  background: #1f2520; border-top: 1px solid rgba(255,255,255,.1);
+  z-index: 59; padding: 10px 14px 16px;
+  display: grid; gap: 4px;
+  max-height: 60vh; overflow-y: auto;
+}
+.dg-mobilemenu a, .dg-mobilemenu button {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px; border: 0; border-radius: 8px; background: none;
+  color: #f0f2f5; font-size: 14px; text-decoration: none;
+  text-align: left; cursor: pointer; width: 100%;
+}
+.dg-mobilemenu a:active, .dg-mobilemenu button:active { background: rgba(255,255,255,.08); }
 
 @media (max-width: 500px) {
   .dg-shell {

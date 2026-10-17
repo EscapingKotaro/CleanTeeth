@@ -2,64 +2,148 @@
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div x-data="{ modal: null, checkCase: null }">
+<div x-data="{ modal: null, checkCase: null, checkStatus: 'NOT_CHECKED', checkDiscrepancy: '', tab: 'registry' }">
+
     <div class="dg-heading">
         <div>
-            <div class="dg-tag">КУРАТОРСКИЙ ОТДЕЛ</div>
+            <div class="dg-tag">Кураторский отдел</div>
             <h1>Проверка документов</h1>
+            <p class="dg-muted">КПЛ в работе: согласованные и в лечении. Расхождение порождает задачу куратору.</p>
         </div>
     </div>
 
-    <section class="dg-panel">
-        <table class="dg-table">
-            <thead>
-                <tr><th>Пациент</th><th>Документы</th><th>Проверка</th>{% if can_check %}<th></th>{% endif %}</tr>
-            </thead>
+    <!-- Чипы-фильтры по результату проверки -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+        <a href="?check_status=&curator={{ curator_id }}" style="text-decoration:none;"
+           class="dg-badge {% if not check_status_filter %}b-blue{% endif %}">Все · {{ counts.total }}</a>
+        <a href="?check_status=unchecked&curator={{ curator_id }}" style="text-decoration:none;"
+           class="dg-badge {% if check_status_filter == 'unchecked' %}b-warn{% endif %}">Не проверено · {{ counts.unchecked }}</a>
+        <a href="?check_status=RECEIVED&curator={{ curator_id }}" style="text-decoration:none;"
+           class="dg-badge {% if check_status_filter == 'RECEIVED' %}b-blue{% endif %}">Документы получены · {{ counts.RECEIVED }}</a>
+        <a href="?check_status=CHECKED&curator={{ curator_id }}" style="text-decoration:none;"
+           class="dg-badge {% if check_status_filter == 'CHECKED' %}b-green{% endif %}">Проверено · {{ counts.CHECKED }}</a>
+        <a href="?check_status=DISCREPANCY&curator={{ curator_id }}" style="text-decoration:none;"
+           class="dg-badge {% if check_status_filter == 'DISCREPANCY' %}b-red{% endif %}">Расхождение · {{ counts.DISCREPANCY }}</a>
+    </div>
+
+    <!-- Фильтр по куратору (руководителям) -->
+    {% if can_check %}
+    <form method="get" class="dg-toolbar" style="margin-bottom:16px;">
+        <input type="hidden" name="check_status" value="{{ check_status_filter }}">
+        <select name="curator" onchange="this.form.submit()">
+            <option value="">Все кураторы</option>
+            {% for u in curators %}
+            <option value="{{ u.id }}" {% if curator_id == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+            {% endfor %}
+        </select>
+    </form>
+    {% endif %}
+
+    <!-- Табы -->
+    <div style="display:flex;gap:6px;margin-bottom:16px;">
+        <button type="button" @click="tab = 'registry'" :class="tab === 'registry' ? 'btn-primary' : ''">Реестр</button>
+        <button type="button" @click="tab = 'history'" :class="tab === 'history' ? 'btn-primary' : ''">История проверок</button>
+    </div>
+
+    <!-- РЕЕСТР -->
+    <section class="dg-panel" x-show="tab === 'registry'">
+        <div style="overflow-x:auto;">
+        <table class="dg-table dg-table-sm">
+            <thead><tr>
+                <th style="text-align:left;">Пациент</th><th style="text-align:left;">Куратор</th><th style="text-align:left;">Врач</th>
+                <th>Тип плана</th><th>Суммы (перв/през/согл)</th><th>Аванс</th>
+                <th>График</th><th>Подпись плана</th><th>Договор</th>
+                <th>Дата проверки</th><th>Результат</th>{% if can_check %}<th></th>{% endif %}
+            </tr></thead>
             <tbody>
                 {% for row in rows %}
-                <tr>
-                    <td>{{ row.case.patient.last_name }} {{ row.case.patient.first_name }}</td>
-                    <td>{{ row.docs }}</td>
+                <tr {% if row.check and row.check.status == 'DISCREPANCY' %}style="background:color-mix(in srgb, var(--dg-red) 6%, transparent);"{% endif %}>
+                    <td style="font-weight:500;">
+                        <a href="{% url 'crm:case_detail' row.case.id %}" style="color:inherit;">
+                            {{ row.case.patient.last_name }} {{ row.case.patient.first_name }}
+                        </a>
+                    </td>
+                    <td class="dg-muted">{{ row.case.curator.get_full_name|default:row.case.curator.username }}</td>
+                    <td class="dg-muted">{{ row.doctor.last_name|default:"—" }} {{ row.doctor.first_name|default:"" }}</td>
+                    <td>{{ row.plan_type }}</td>
+                    <td class="dg-muted">{{ row.initial_sum|floatformat:0 }} / {{ row.presentation_sum|floatformat:0 }} / <b>{{ row.agreed_sum|floatformat:0 }}</b></td>
+                    <td>{{ row.advance|floatformat:0 }} ₽</td>
+                    <td>{% if row.schedule_ok %}<span class="dg-badge b-green">подписан</span>{% else %}<span class="dg-badge b-warn">нет</span>{% endif %}</td>
+                    <td>{% if row.plan_signed %}<span class="dg-badge b-green">есть</span>{% else %}<span class="dg-badge b-warn">нет</span>{% endif %}</td>
+                    <td>{% if row.contract %}<span class="dg-badge b-green">№{{ row.contract.number }}</span>{% else %}<span class="dg-badge b-red">нет</span>{% endif %}</td>
+                    <td class="dg-muted">{{ row.check.created_at|date:"d.m.Y"|default:"—" }}</td>
                     <td>
                         {% if row.check %}
-                        <span class="dg-badge {% if row.check.status == 'DISCREPANCY' %}dg-warn{% elif row.check.status == 'CHECKED' %}dg-success{% endif %}">
-                            {{ row.check.get_status_display }}
-                        </span>
-                        {% else %}
-                        <span class="dg-badge">Не проверено</span>
-                        {% endif %}
+                        <span class="dg-badge {% if row.check.status == 'DISCREPANCY' %}b-red{% elif row.check.status == 'CHECKED' %}b-green{% elif row.check.status == 'RECEIVED' %}b-blue{% endif %}">{{ row.check.get_status_display }}</span>
+                        {% else %}<span class="dg-badge">Не проверено</span>{% endif %}
                     </td>
                     {% if can_check %}
                     <td style="text-align:right;">
-                        <button type="button" @click="checkCase = {{ row.case.id }}; modal = 'check'">Проверить</button>
+                        <button type="button"
+                                @click="checkCase = {{ row.case.id }}; checkStatus = '{{ row.check.status|default:'NOT_CHECKED' }}'; checkDiscrepancy = '{{ row.check.discrepancy_type|default:'' }}'; modal = 'check'">
+                            Проверить
+                        </button>
                     </td>
                     {% endif %}
                 </tr>
                 {% empty %}
-                <tr><td colspan="4" class="dg-muted" style="padding:20px 10px;">Нет КПЛ, ожидающих проверки</td></tr>
+                <tr><td colspan="13" class="dg-muted" style="padding:20px 10px;text-align:center;">Нет кейсов, ожидающих проверки</td></tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </section>
 
+    <!-- ИСТОРИЯ ПРОВЕРОК -->
+    <section class="dg-panel" x-show="tab === 'history'">
+        <div class="dg-panelhead"><h2>История проверок</h2><span class="dg-muted">последние 200</span></div>
+        <div style="overflow-x:auto;">
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th>Когда</th><th>Пациент</th><th>КПЛ</th><th>Куратор</th><th>Кто проверил</th><th>Результат</th><th>Тип расхождения</th><th>Комментарий</th></tr></thead>
+            <tbody>
+                {% for ch in history %}
+                <tr>
+                    <td class="dg-muted">{{ ch.created_at|date:"d.m.Y H:i" }}</td>
+                    <td>
+                        <a href="{% url 'crm:case_detail' ch.case.id %}" style="color:inherit;">
+                            {{ ch.case.patient.last_name }} {{ ch.case.patient.first_name }}
+                        </a>
+                    </td>
+                    <td class="dg-muted">#{{ ch.case.id }}</td>
+                    <td class="dg-muted">{{ ch.case.curator.get_full_name|default:ch.case.curator.username }}</td>
+                    <td>{{ ch.checked_by.get_full_name|default:ch.checked_by.username|default:"—" }}</td>
+                    <td><span class="dg-badge {% if ch.status == 'DISCREPANCY' %}b-red{% elif ch.status == 'CHECKED' %}b-green{% elif ch.status == 'RECEIVED' %}b-blue{% endif %}">{{ ch.get_status_display }}</span></td>
+                    <td>{% if ch.discrepancy_type %}<span class="dg-badge b-warn">{{ ch.get_discrepancy_type_display }}</span>{% else %}—{% endif %}</td>
+                    <td class="dg-muted">{{ ch.comment|default:"—"|truncatechars:60 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="dg-muted" style="padding:20px 10px;text-align:center;">Проверок ещё не было</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </section>
+
+    <!-- МОДАЛКА ПРОВЕРКИ -->
     {% if can_check %}
     <div x-show="modal" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
     <div x-show="modal === 'check'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
         <form method="post" action="{% url 'crm:doc_check_create' %}" class="dg-panel"
-              style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+              style="max-width:440px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
             {% csrf_token %}
             <input type="hidden" name="case_id" :value="checkCase">
             <div class="dg-panelhead"><h2>Проверка документов</h2></div>
             <div style="display:grid;gap:12px;">
                 <label class="dg-muted" style="display:grid;gap:6px;">Статус
-                    <select name="status">
+                    <select name="status" x-model="checkStatus">
                         {% for value, label in check_statuses %}
                         <option value="{{ value }}">{{ label }}</option>
                         {% endfor %}
                     </select>
                 </label>
-                <label class="dg-muted" style="display:grid;gap:6px;">Тип расхождения (если есть)
-                    <select name="discrepancy_type">
+                <label class="dg-muted" style="display:grid;gap:6px;" x-show="checkStatus === 'DISCREPANCY'">
+                    Тип расхождения <span style="color:var(--dg-warn);">*</span>
+                    <select name="discrepancy_type" x-model="checkDiscrepancy">
                         <option value="">—</option>
                         {% for value, label in discrepancies %}
                         <option value="{{ value }}">{{ label }}</option>
@@ -74,9 +158,10 @@
                 <button type="button" @click="modal = null">Отмена</button>
                 <button type="submit" class="btn-primary">Сохранить</button>
             </div>
-            <p class="dg-muted" style="margin-top:10px;">При статусе «Расхождение» куратору автоматически создаётся задача.</p>
+            <p class="dg-muted" style="margin-top:10px;">При статусе «Расхождение» ответственному куратору автоматически создаётся задача, запись уходит в журнал и в историю проверок.</p>
         </form>
     </div>
     {% endif %}
+
 </div>
 {% endblock %}

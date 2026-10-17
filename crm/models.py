@@ -150,6 +150,10 @@ class Patient(models.Model):
     created_at = models.DateTimeField("Создан", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлён", auto_now=True)
     is_active = models.BooleanField("Активен", default=True)
+    category = models.ForeignKey(
+        PatientCategory, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="patients", verbose_name="Категория пациента",
+    )
 
     class Meta:
         verbose_name = "Пациент"
@@ -689,6 +693,19 @@ class CuratorMonthlyPlan(models.Model):
         return self.total_bonus + self.daily_component
         return self.total_bonus + self.daily_component
 
+    @property
+    def adjustments_auto(self):
+        """Корректировки из реестра (возвраты, маткапитал) за месяц — по дате события."""
+        from django.db.models import Sum
+        return FinanceAdjustment.objects.filter(
+            case__curator=self.curator,
+            event_date__year=self.year, event_date__month=self.month,
+        ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+
+    @property
+    def adjustments_effective(self):
+        return self.adjustments_auto + (self.adjustments or Decimal("0"))
+
 
 from datetime import datetime, timedelta
 
@@ -1010,3 +1027,79 @@ def get_threshold(key):
     return default
 
 
+
+class PatientCategory(models.Model):
+    """Категория пациента (первичка/повторники и т.д.)."""
+    title = models.CharField("Категория", max_length=100)
+    sort_order = models.PositiveIntegerField("Порядок", default=0)
+    is_active = models.BooleanField("Активна", default=True)
+
+    class Meta:
+        verbose_name = "Категория пациента"
+        verbose_name_plural = "Категории пациентов"
+        ordering = ["sort_order", "title"]
+
+    def __str__(self):
+        return self.title
+
+
+class VisitCategory(models.Model):
+    """Категория посещения/приёма."""
+    title = models.CharField("Категория", max_length=100)
+    sort_order = models.PositiveIntegerField("Порядок", default=0)
+    is_active = models.BooleanField("Активна", default=True)
+
+    class Meta:
+        verbose_name = "Категория посещения"
+        verbose_name_plural = "Категории посещений"
+        ordering = ["sort_order", "title"]
+
+    def __str__(self):
+        return self.title
+
+
+class Visit(models.Model):
+    """Приём/посещение пациента (реестр приёмов, ТЗ гл.7)."""
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="visits", verbose_name="Пациент")
+    case = models.ForeignKey("CuratorCase", on_delete=models.SET_NULL, null=True, blank=True, related_name="visits", verbose_name="КПЛ")
+    visit_date = models.DateField("Дата приёма")          # ← дата СОБЫТИЯ
+    category = models.ForeignKey(VisitCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="visits", verbose_name="Категория посещения")
+    diagnosis = models.TextField("Диагностика", blank=True)
+    comment = models.TextField("Комментарий", blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="visits", verbose_name="Кто записал")
+    created_at = models.DateTimeField("Создано", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Приём"
+        verbose_name_plural = "Приёмы и посещения"
+        ordering = ["-visit_date", "-id"]
+
+    def __str__(self):
+        return f"{self.patient} · {self.visit_date:%d.%m.%Y}"
+
+
+class FinanceAdjustment(models.Model):
+    """Возврат / корректировка, включая материнский капитал (ТЗ гл.7)."""
+
+    class Kind(models.TextChoices):
+        REFUND_KPL = "REFUND_KPL", "Возврат по КПЛ"
+        MAT_CAPITAL = "MAT_CAPITAL", "Материнский капитал"
+        DISCOUNT = "DISCOUNT", "Корректировка суммы"
+        OTHER = "OTHER", "Прочее"
+
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="adjustments", verbose_name="Пациент")
+    case = models.ForeignKey("CuratorCase", on_delete=models.SET_NULL, null=True, blank=True, related_name="adjustments", verbose_name="КПЛ")
+    kind = models.CharField("Тип", max_length=20, choices=Kind.choices, default=Kind.OTHER)
+    amount = models.DecimalField("Сумма (возврат — со знаком минус)", max_digits=10, decimal_places=2)
+    event_date = models.DateField("Дата события")            # ← дата СОБЫТИЯ
+    comment = models.TextField("Комментарий", blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="adjustments")
+    created_at = models.DateTimeField("Создано", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Возврат / корректировка"
+        verbose_name_plural = "Возвраты и корректировки"
+        ordering = ["-event_date", "-id"]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} · {self.amount} ₽ · {self.event_date:%d.%m.%Y}"

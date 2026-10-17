@@ -14,31 +14,21 @@
 <!-- Фильтры -->
 <section class="dg-panel">
     <form method="get" class="dg-toolbar">
-        <label class="dg-muted" style="display:grid;gap:6px;">С даты
-            <input type="date" name="from" value="{{ start_date|date:'Y-m-d' }}">
-        </label>
-        <label class="dg-muted" style="display:grid;gap:6px;">По дату
-            <input type="date" name="to" value="{{ end_date|date:'Y-m-d' }}">
-        </label>
-        <label class="dg-muted" style="display:grid;gap:6px;">Куратор
-            <select name="curator" onchange="this.form.submit()">
-                <option value="">Все</option>
-                {% for u in curators %}
-                <option value="{{ u.id }}" {% if curator_id == u.id|stringformat:"s" %}selected{% endif %}>
-                    {{ u.get_full_name|default:u.username }}
-                </option>
-                {% endfor %}
-            </select>
-        </label>
-        <label class="dg-muted" style="display:grid;gap:6px;">Статус сопровождения
-            <select name="status" onchange="this.form.submit()">
-                <option value="">Все</option>
-                {% for value, label in statuses %}
-                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </label>
-                <button type="submit" class="btn-primary" style="margin-left:auto;">Показать</button>
+        <select name="period" onchange="this.form.submit()">
+            <option value="day" {% if period == 'day' %}selected{% endif %}>День</option>
+            <option value="week" {% if period == 'week' %}selected{% endif %}>Неделя</option>
+            <option value="month" {% if period == 'month' %}selected{% endif %}>Месяц</option>
+            <option value="quarter" {% if period == 'quarter' %}selected{% endif %}>Квартал</option>
+            <option value="custom" {% if period == 'custom' %}selected{% endif %}>Произвольный</option>
+        </select>
+        <input type="date" name="from" value="{{ start|date:'Y-m-d' }}">
+        <input type="date" name="to" value="{{ end|date:'Y-m-d' }}">
+        <select name="curator" onchange="this.form.submit()">
+            <option value="">Все кураторы</option>
+            {% for u in curators %}<option value="{{ u.id }}" {% if curator_id == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn-primary">Показать</button>
+        <a href="{% url 'crm:manager_report_export' %}?{{ request.GET.urlencode }}" class="btn" style="margin-left:auto;">⬇ Выгрузить CSV</a>
     </form>
 </section>
 
@@ -65,43 +55,82 @@
     <section class="dg-panel dg-stat"><p class="dg-muted">Без след. действия</p><div class="dg-value" style="color:var(--dg-red);">{{ summary.no_next }}</div></section>
 </div>
 
-<!-- Разбивка по кураторам -->
-<section class="dg-panel">
-    <div class="dg-panelhead"><h2>По кураторам (факт за период)</h2></div>
-    <div style="overflow-x:auto;">
+
+    <section class="dg-panel">
+        <div class="dg-panelhead"><h2>Показатели за период</h2><span class="dg-muted">{{ start|date:"d.m.Y" }} — {{ end|date:"d.m.Y" }}</span></div>
+        <div style="overflow-x:auto;">
         <table class="dg-table dg-table-sm">
-            <thead>
-                <tr>
-                    <th style="text-align:left;">Куратор</th>
-                    <th>План</th><th>%</th>
-                    <th>През., шт</th><th>През., ₽</th>
-                    <th>Согл., шт</th><th>К1, ₽</th>
-                    <th>Конв.</th><th>Упущ.</th>
-                    <th>Аванс, шт</th><th>Авансы, ₽</th>
-                    <th>Ср. чек</th>
-                </tr>
-            </thead>
+            <thead><tr>
+                <th style="text-align:left;">Куратор</th><th>План</th><th>Факт</th><th>%</th><th>Ср. чек</th>
+                <th>Презент. ₽</th><th>Соглас. ₽</th><th>Авансы</th><th>Оплаты</th><th>Наряды</th>
+                <th>Задачи созд/вып</th><th>Мотивация</th>
+            </tr></thead>
             <tbody>
-                {% for r in curator_rows %}
-                <tr>
-                    <td style="font-weight:500;">{{ r.user.get_full_name|default:r.user.username }}</td>
-                    <td>{{ r.plan_sum|floatformat:0 }}</td>
-                    <td style="{% if r.fulfillment >= 100 %}color:var(--dg-green);font-weight:600;{% elif r.fulfillment >= 50 %}color:var(--dg-warn);{% else %}color:var(--dg-red);{% endif %}">{{ r.fulfillment }}%</td>
-                    <td>{{ r.pres_count }}</td>
-                    <td>{{ r.pres_sum|floatformat:0 }}</td>
-                    <td>{{ r.agr_count }}</td>
-                    <td style="color:var(--dg-green);font-weight:600;">{{ r.agr_sum|floatformat:0 }}</td>
-                    <td>{{ r.conv }}%</td>
-                    <td style="color:var(--dg-red);">{{ r.lost_sum|floatformat:0 }}</td>
-                    <td>{{ r.adv_count }}</td>
-                    <td style="color:var(--dg-blue);">{{ r.adv_sum|floatformat:0 }}</td>
-                    <td>{{ r.avg_check|floatformat:0 }}</td>
+                {% for name, m in rows %}
+                <tr {% if forloop.first %}style="font-weight:600;background:var(--dg-soft);"{% endif %}>
+                    <td>{{ name }}</td>
+                    <td>{{ m.plan|floatformat:0 }}</td>
+                    <td style="color:var(--dg-green);">{{ m.fact|floatformat:0 }}</td>
+                    <td>{{ m.percent }}%</td>
+                    <td>{{ m.avg_check|floatformat:0 }}</td>
+                    <td>{{ m.presentation_sum|floatformat:0 }}</td>
+                    <td>{{ m.agreed_sum|floatformat:0 }}</td>
+                    <td>{{ m.advances|floatformat:0 }}</td>
+                    <td>{{ m.payments|floatformat:0 }}</td>
+                    <td>{{ m.workorders_sum|floatformat:0 }} ({{ m.workorders_count }})</td>
+                    <td>{{ m.tasks_created }} / {{ m.tasks_done }}</td>
+                    <td>{{ m.motivation|floatformat:0 }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-    </div>
-</section>
+        </div>
+        <p class="dg-muted" style="margin-top:8px;">План и мотивация — по месяцам, пересекающим период. Факт, оплаты, наряды — по дате события в периоде.</p>
+    </section>
+
+    <section class="dg-panel">
+        <div class="dg-panelhead"><h2>Воронка и конверсии за период</h2></div>
+        <div style="overflow-x:auto;">
+        <table class="dg-table dg-table-sm">
+            <thead><tr>
+                <th style="text-align:left;">Куратор</th><th>Передано</th><th>Презентовано</th><th>Согласовано</th>
+                <th>В лечении</th><th>Завершено</th><th>Отказ</th>
+                <th>Перед→През</th><th>През→Согл</th><th>Согл→Леч</th><th>Леч→Зав</th>
+            </tr></thead>
+            <tbody>
+                {% for name, m in rows %}
+                <tr {% if forloop.first %}style="font-weight:600;background:var(--dg-soft);"{% endif %}>
+                    <td>{{ name }}</td>
+                    <td>{{ m.funnel.transferred }}</td><td>{{ m.funnel.presented }}</td><td>{{ m.funnel.agreed }}</td>
+                    <td>{{ m.funnel.in_progress }}</td><td>{{ m.funnel.completed }}</td><td style="color:var(--dg-red);">{{ m.funnel.lost }}</td>
+                    <td>{{ m.conversions.transfer_present }}%</td><td>{{ m.conversions.present_agree }}%</td>
+                    <td>{{ m.conversions.agree_progress }}%</td><td>{{ m.conversions.progress_done }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </section>
+
+    <section class="dg-panel">
+        <div class="dg-panelhead"><h2>Текущее состояние (на сегодня)</h2><span class="dg-muted">не зависит от периода</span></div>
+        <div style="overflow-x:auto;">
+        <table class="dg-table dg-table-sm">
+            <thead><tr><th style="text-align:left;">Куратор</th><th>Активных КПЛ</th><th>Остаток (дебиторка)</th><th>Просроченные задачи</th><th>Без следующего действия</th></tr></thead>
+            <tbody>
+                {% for name, m in rows %}
+                <tr {% if forloop.first %}style="font-weight:600;background:var(--dg-soft);"{% endif %}>
+                    <td>{{ name }}</td>
+                    <td>{{ m.now.active }}</td>
+                    <td style="color:var(--dg-warn);">{{ m.now.remainder|floatformat:0 }} ₽</td>
+                    <td style="color:var(--dg-red);">{{ m.now.overdue }}</td>
+                    <td style="color:var(--dg-red);">{{ m.now.no_next }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </section>
 
 <!-- Детализация сопровождений -->
 <section class="dg-panel">

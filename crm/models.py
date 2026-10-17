@@ -135,6 +135,19 @@ class Doctor(models.Model):
 # ============================================================
 # ПАЦИЕНТ / ДОГОВОР / ПЛАН ЛЕЧЕНИЯ (из прошлой итерации)
 # ============================================================
+class PatientCategory(models.Model):
+    """Категория пациента (первичка/повторники и т.д.)."""
+    title = models.CharField("Категория", max_length=100)
+    sort_order = models.PositiveIntegerField("Порядок", default=0)
+    is_active = models.BooleanField("Активна", default=True)
+
+    class Meta:
+        verbose_name = "Категория пациента"
+        verbose_name_plural = "Категории пациентов"
+        ordering = ["sort_order", "title"]
+
+    def __str__(self):
+        return self.title
 
 class Patient(models.Model):
     """Постоянная карточка человека"""
@@ -1028,19 +1041,7 @@ def get_threshold(key):
 
 
 
-class PatientCategory(models.Model):
-    """Категория пациента (первичка/повторники и т.д.)."""
-    title = models.CharField("Категория", max_length=100)
-    sort_order = models.PositiveIntegerField("Порядок", default=0)
-    is_active = models.BooleanField("Активна", default=True)
 
-    class Meta:
-        verbose_name = "Категория пациента"
-        verbose_name_plural = "Категории пациентов"
-        ordering = ["sort_order", "title"]
-
-    def __str__(self):
-        return self.title
 
 
 class VisitCategory(models.Model):

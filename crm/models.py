@@ -106,12 +106,6 @@ class Doctor(models.Model):
     phone = models.CharField("Телефон", max_length=20, blank=True)
     email = models.EmailField("Email", blank=True)
 
-    direction = models.CharField(
-        "Направление лечения",
-        max_length=20,
-        choices=Direction.choices,
-    )
-
     is_active = models.BooleanField("Активен в клинике", default=True)
 
     # Интеграция с iDent
@@ -215,14 +209,10 @@ class TreatmentPlan(models.Model):
     patient = models.ForeignKey(
         Patient, on_delete=models.CASCADE, related_name="plans", verbose_name="Пациент"
     )
-    doctor = models.ForeignKey(
-    Doctor,
-    on_delete=models.SET_NULL,
-    null=True,
-    blank=True,
-    related_name="treatment_plans",
-    verbose_name="Лечащий врач",
-)
+    doctors = models.ManyToManyField(
+        Doctor, blank=True, related_name="treatment_plans",
+        verbose_name="Лечащие врачи",
+    )
     initial_sum = models.DecimalField("Первоначальная сумма", max_digits=12, decimal_places=2, default=0)
     presentation_sum = models.DecimalField("Сумма презентации", max_digits=12, decimal_places=2, default=0)
     agreed_sum = models.DecimalField("Согласованная сумма", max_digits=12, decimal_places=2, default=0)

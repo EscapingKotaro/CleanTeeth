@@ -460,6 +460,7 @@ def case_detail(request, case_id):
         "can_delete_case": can_delete_case,
         "directions": directions_ctx,
         "payment_categories": Payment.PaymentCategory.choices,
+        "doctors": Doctor.objects.filter(is_active=True).order_by("last_name", "first_name"),
     })
 
 
@@ -660,6 +661,7 @@ def plan_update(request, plan_id):
         plan.agreement_date = request.POST.get('agreement_date') or None
         plan.plan_type = request.POST.get('plan_type', '')
         plan.is_signed_by_patient = request.POST.get('is_signed_by_patient') == 'true'
+        plan.doctors.set([i for i in request.POST.getlist("doctor_ids") if i.isdigit()])
         plan.save()
         for f, old in old_values.items():
             new = getattr(plan, f)
@@ -723,12 +725,12 @@ def plan_create(request):
         
         plan = TreatmentPlan.objects.create(
             patient=patient,
-            doctor_id=request.POST.get("doctor_id") or None,
             initial_sum=_to_decimal(request.POST.get("initial_sum", 0)),
             presentation_sum=_to_decimal(request.POST.get("presentation_sum", 0)),
             agreed_sum=_to_decimal(request.POST.get("agreed_sum", 0)),
             plan_type=request.POST.get("plan_type", ""),
         )
+        plan.doctors.set([i for i in request.POST.getlist("doctor_ids") if i.isdigit()])
         
         # Связь с договором (если выбран)
         contract_id = request.POST.get("contract_id")
@@ -1135,7 +1137,6 @@ def manager_required(view_func):
 def doctors_list(request):
     """Список врачей: поиск + фильтр по направлению/статусу + пагинация."""
     query = request.GET.get("q", "").strip()
-    direction_filter = request.GET.get("direction", "")
     status_filter = request.GET.get("active", "")
 
     queryset = Doctor.objects.all().order_by("last_name", "first_name")
@@ -1148,8 +1149,6 @@ def doctors_list(request):
             | Q(phone__icontains=query)
             | Q(email__icontains=query)
         )
-    if direction_filter:
-        queryset = queryset.filter(direction=direction_filter)
     if status_filter == "active":
         queryset = queryset.filter(is_active=True)
     elif status_filter == "inactive":
@@ -1169,9 +1168,7 @@ def doctors_list(request):
         "title": "Врачи",
         "page_obj": page_obj,
         "total_count": paginator.count,
-        "directions": Doctor._meta.get_field("direction").choices,
         "query": query,
-        "direction_filter": direction_filter,
         "status_filter": status_filter,
         "search_params": search_params,
         # без сайдбаров
@@ -2953,7 +2950,7 @@ def doc_checks(request):
             "case": c,
             "docs": docs_state(c),
             "check": c.document_checks.first(),
-            "doctor": p.doctor,
+            "doctors": list(p.doctors.all()),
             "plan_type": p.get_plan_type_display() or "—",
             "initial_sum": p.initial_sum,
             "presentation_sum": p.presentation_sum,

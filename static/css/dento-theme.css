@@ -752,3 +752,20 @@ button:not(.btn-primary):hover, .btn:not(.btn-primary):hover { transform: transl
   .dg-metrics-row .dg-muted { font-size: 9px; }
   .dg-metrics-row .dg-value { font-size: 13px; }
 }
+
+/* Воронка КПЛ: горизонтальный степпер в одну строку */
+.dg-funnel { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 4px 0 8px; }
+.dg-funnel-step { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.dg-funnel-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 11px;
+  background: var(--dg-soft); color: var(--dg-muted); flex-shrink: 0;
+}
+.dg-funnel-step.past .dg-funnel-dot { background: var(--dg-soft); color: var(--dg-main); }
+.dg-funnel-step.current .dg-funnel-dot { background: var(--dg-main); color: var(--dg-on); }
+.dg-funnel-label { font-size: 12px; color: var(--dg-muted); white-space: nowrap; }
+.dg-funnel-step.past .dg-funnel-label { color: var(--dg-text); }
+.dg-funnel-step.current .dg-funnel-label { color: var(--dg-text); font-weight: 500; }
+.dg-funnel-step.optional .dg-funnel-label { font-style: italic; }
+.dg-funnel-line { flex: 1 0 14px; min-width: 14px; height: 2px; border-radius: 1px; background: var(--dg-line); }
+.dg-funnel-line.past { background: var(--dg-main); }

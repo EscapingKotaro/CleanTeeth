@@ -68,12 +68,12 @@ class ContractAdmin(admin.ModelAdmin):
 @admin.register(Doctor)
 class DoctorAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "last_name", "first_name", "direction",
+        "id", "last_name", "first_name", 
         "phone", "is_active", "ident_doctor_id",
     )
     list_display_links = ("id", "last_name", "first_name")
     search_fields = ("first_name", "last_name", "middle_name", "phone", "ident_doctor_id")
-    list_filter = ("direction", "is_active")
+    list_filter = ("is_active")
     readonly_fields = ("created_at", "updated_at")
     fieldsets = (
         ("Основные данные", {"fields": ("last_name", "first_name", "middle_name", "direction")}),
@@ -109,7 +109,7 @@ class PaymentInline(admin.TabularInline):
 @admin.register(TreatmentPlan)
 class TreatmentPlanAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "patient", "doctor", "plan_type", "agreed_sum",
+        "id", "patient",  "plan_type", "agreed_sum",
         "presentation_date", "agreement_date", "is_signed_by_patient", "is_ready_for_work",
     )
     list_display_links = ("id", "patient")
@@ -118,13 +118,14 @@ class TreatmentPlanAdmin(admin.ModelAdmin):
         "patient__phone", "doctor__last_name", "doctor__first_name",
     )
     list_filter = ("plan_type", "is_signed_by_patient", "is_schedule_signed", "agreement_date", "doctor")
-    autocomplete_fields = ("patient", "doctor")
+    autocomplete_fields = ("patient")
     readonly_fields = ("created_at", "updated_at")
-    list_select_related = ("patient", "doctor")
+    list_select_related = ("patient")
+     filter_horizontal = ("doctors",) 
     inlines = [PlanDirectionInline, PaymentScheduleInline, PaymentInline]
 
     fieldsets = (
-        ("Участники", {"fields": ("patient", "doctor")}),
+        ("Участники", {"fields": ("patient")}),
         ("Суммы", {"fields": ("initial_sum", "presentation_sum", "agreed_sum")}),
         ("Даты и статусы", {
             "fields": (
@@ -289,3 +290,22 @@ class AuditLogAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
+
+
+@admin.register(SystemSetting)
+class SystemSettingAdmin(admin.ModelAdmin):
+    list_display = ("key", "value", "description")
+    search_fields = ("key", "description")
+    ordering = ("key",)
+    list_editable = ("value",)   # правка порогов прямо из списка
+
+
+@admin.register(MotivationScheme)
+class MotivationSchemeAdmin(admin.ModelAdmin):
+    list_display = (
+        "name", "valid_from", "bonus1_rate", "bonus2_rate",
+        "under100_penalty_rate", "over110_bonus_rate",
+        "threshold_mid", "threshold_high", "daily_rate",
+    )
+    search_fields = ("name",)
+    ordering = ("-valid_from",)

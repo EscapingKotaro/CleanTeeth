@@ -46,23 +46,13 @@
                 {% endif %}
             </div>
 
-            <div style="display:grid;gap:8px;">
+            <div class="dg-funnel">
                 {% for step in funnel_steps %}
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="flex-shrink:0;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;
-                        {% if step.is_current %}background:var(--dg-main);color:var(--dg-on);
-                        {% elif step.is_past %}background:var(--dg-soft);color:var(--dg-main);
-                        {% else %}background:var(--dg-soft);color:var(--dg-muted);{% endif %}">
-                        {% if step.is_past %}✓{% elif step.is_current %}●{% endif %}
-                    </div>
-                    <span style="font-size:14px;
-                        {% if step.is_current %}font-weight:500;color:var(--dg-text);
-                        {% elif step.is_past %}color:var(--dg-text);
-                        {% else %}color:var(--dg-muted);{% endif %}
-                        {% if step.is_optional and not step.is_current %}font-style:italic;{% endif %}">
-                        {{ step.label }}
-                    </span>
+                <div class="dg-funnel-step {% if step.is_past %}past{% elif step.is_current %}current{% endif %} {% if step.is_optional and not step.is_current %}optional{% endif %}">
+                    <div class="dg-funnel-dot">{% if step.is_past %}✓{% elif step.is_current %}●{% endif %}</div>
+                    <span class="dg-funnel-label">{{ step.label }}</span>
                 </div>
+                {% if not forloop.last %}<div class="dg-funnel-line {% if step.is_past %}past{% endif %}"></div>{% endif %}
                 {% endfor %}
             </div>
 
@@ -139,6 +129,16 @@
                                 <p class="dg-muted">Дата рождения</p>
                                 <p style="margin:4px 0 0;">{{ case.patient.birth_date|date:"d.m.Y"|default:"Не указана" }}</p>
                             </div>
+                        <div>
+                            <p class="dg-muted">Лечащие врачи</p>
+                            <p style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 0;">
+                                {% for d in case.plan.doctors.all %}
+                                <span class="dg-badge b-blue">{{ d.last_name }} {{ d.first_name }}</span>
+                                {% empty %}
+                                <span class="dg-muted">Не назначены</span>
+                                {% endfor %}
+                            </p>
+                        </div>
                         </div>
                         {% if case.patient.comment %}
                         <div style="margin-top:6px;">

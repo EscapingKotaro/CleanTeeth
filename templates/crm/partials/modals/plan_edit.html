@@ -23,6 +23,18 @@
                     <input type="date" name="agreement_date" value="{{ case.plan.agreement_date|date:'Y-m-d' }}">
                 </label>
             </div>
+                <fieldset class="dg-muted" style="display:grid;gap:6px;border:0;padding:0;margin:0;">
+                    <legend style="padding:0;margin:0 0 4px;">Лечащие врачи (можно несколько)</legend>
+                    <div style="display:grid;gap:4px;max-height:150px;overflow-y:auto;">
+                        {% for d in doctors %}
+                        <label style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" name="doctor_ids" value="{{ d.id }}" class="dg-check"
+                                   {% if d in case.plan.doctors.all %}checked{% endif %}>
+                            <span>{{ d.last_name }} {{ d.first_name }} {{ d.middle_name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
             <label class="dg-muted" style="display:grid;gap:6px;">Тип плана
                 <select name="plan_type">
                     <option value="">Не выбран</option>

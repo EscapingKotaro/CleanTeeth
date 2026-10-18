@@ -103,14 +103,18 @@
                     </select>
                     <span style="font-size:11px;">Действующий договор выбранного пациента. Пусто — план без договора.</span>
                 </label>
-                <label class="dg-muted" style="display:grid;gap:6px;">Врач
-                    <select name="doctor_id">
-                        <option value="">Не назначен</option>
+                <fieldset class="dg-muted" style="display:grid;gap:6px;border:0;padding:0;margin:0;">
+                    <legend style="padding:0;margin:0 0 4px;">Лечащие врачи (можно несколько)</legend>
+                    <div style="display:grid;gap:4px;max-height:150px;overflow-y:auto;">
                         {% for d in doctors %}
-                        <option value="{{ d.id }}">{{ d.last_name }} {{ d.first_name }} · {{ d.get_direction_display }}</option>
+                        <label style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" name="doctor_ids" value="{{ d.id }}" class="dg-check">
+                            <span>{{ d.last_name }} {{ d.first_name }} {{ d.middle_name }}</span>
+                        </label>
                         {% endfor %}
-                    </select>
-                </label>
+                    </div>
+                    <span style="font-size:11px;">Не отмечено ни одного — план без врачей.</span>
+                </fieldset>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
                     <label class="dg-muted" style="display:grid;gap:6px;">Сумма плана
                         <input type="number" step="0.01" name="initial_sum" value="0">

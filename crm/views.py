@@ -1648,44 +1648,30 @@ def plan_sign(request, plan_id):
 
 @login_required
 def payment_create(request, plan_id):
+    """Создать платёж по плану лечения."""
     plan = get_object_or_404(TreatmentPlan, id=plan_id)
+    case_id = plan.cases.first().id if plan.cases.exists() else None
+    back = _next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case_id})
+
     if request.method != "POST":
-        return redirect("crm:case_detail", case_id=plan.cases.first().id)
+        return redirect(back)
 
     amount = _to_decimal(request.POST.get("amount", 0))
     payment_date = parse_date(request.POST.get("payment_date", "")) or timezone.now().date()
-    schedule_item_id = request.POST.get("schedule_item_id") or None
 
     if amount <= 0:
         messages.error(request, "Сумма платежа должна быть больше нуля.")
-        return redirect("crm:case_detail", case_id=plan.cases.first().id)
+        return redirect(back)
 
-    schedule_item = None
-    is_advance = request.POST.get("is_advance") == "on"
-    if schedule_item_id:
-        schedule_item = PaymentSchedule.objects.filter(id=schedule_item_id, plan=plan).first()
-        # Аванс по авансовому пункту графика — автоматически авансовый платёж
-        if schedule_item and schedule_item.is_advance:
-            is_advance = True
-
-    with transaction.atomic():
-        Payment.objects.create(
-            plan=plan,
-            amount=amount,
-            payment_date=parse_date(request.POST.get("payment_date", "")) or timezone.now().date(),
-            payment_category=request.POST.get("payment_category", Payment.PaymentCategory.CARD),
-            is_advance=request.POST.get("is_advance") == "on",
-            schedule_item_id=request.POST.get("schedule_item_id") or None,
-            comment=request.POST.get("comment", "").strip(),
-        )
-        # Если привязан к пункту графика — зачитываем в счёт него
-        if schedule_item:
-            schedule_item.paid_amount = F("paid_amount") + amount
-            schedule_item.save(update_fields=["paid_amount"])
-            schedule_item.refresh_from_db()
-            if schedule_item.paid_amount >= schedule_item.planned_amount and not schedule_item.payment_date:
-                schedule_item.payment_date = payment_date
-                schedule_item.save(update_fields=["payment_date"])
+    payment = Payment.objects.create(
+        plan=plan,
+        amount=amount,
+        payment_date=payment_date,
+        payment_category=request.POST.get("payment_category", Payment.PaymentCategory.CARD),
+        is_advance=request.POST.get("is_advance") == "on",
+        schedule_item_id=request.POST.get("schedule_item_id") or None,
+        comment=request.POST.get("comment", "").strip(),
+    )
 
     log_action(
         action=AuditLog.Action.CREATE, instance=payment,
@@ -1698,8 +1684,15 @@ def payment_create(request, plan_id):
         amount=payment.amount,
         comment="Внесён платёж",
     )
-    messages.success(request, f"Платёж {amount} ₽ внесён.")
-    return redirect("crm:case_detail", case_id=plan.cases.first().id)
+
+    # Если платёж закрывает пункт графика — обновляем
+    if payment.schedule_item:
+        item = payment.schedule_item
+        item.refresh_from_db()  # пересчитать paid_amount
+        # (свойство paid_amount на модели уже суммирует платежи)
+
+    messages.success(request, f"Платёж на {amount} ₽ внесён.")
+    return redirect(back)
 
 
 

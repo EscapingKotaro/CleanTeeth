@@ -349,7 +349,7 @@ def cases_list(request):
         })
 
     return render(request, "crm/cases_list.html", {
-        "title": "Кейсы",
+        "title": "КПЛ",
         "cases": queryset,
         "statuses": CuratorCase.Status.choices,
         "current_status": status_filter,
@@ -740,6 +740,7 @@ def plan_create(request):
         # Создание кейса
         curator_id = request.POST.get("curator_id") or request.user.id
         case = CuratorCase.objects.create(
+            patient=patient,
             plan=plan,
             curator_id=curator_id,
             status=CuratorCase.Status.TRANSFERRED,

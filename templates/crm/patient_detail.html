@@ -92,7 +92,13 @@
                 {% for p in plans %}
                 <tr>
                     <td style="font-weight:500;">#{{ p.id }}</td>
-                    <td>{{ p.doctor.get_full_name|default:"Не назначен" }}</td>
+                                        <td>
+                        {% for d in p.doctors.all %}
+                        {{ d.last_name }} {{ d.first_name }}{% if not forloop.last %}, {% endif %}
+                        {% empty %}
+                        <span class="dg-muted">Не назначен</span>
+                        {% endfor %}
+                    </td>
                     <td>{{ p.agreed_sum|floatformat:0 }} ₽</td>
                     <td>
                         {% if p.contract %}

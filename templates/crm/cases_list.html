@@ -3,8 +3,10 @@
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div x-data="{ openPlanModal: false, planPatient: '', contractsByPatient: {{ contracts_json|safe }} }">
-
+<script>
+    window.contractsByPatient = {{ contracts_json|safe }};
+</script>
+<div x-data="{ openPlanModal: false, planPatient: '', contractsByPatient: window.contractsByPatient }">
     <div class="dg-heading">
         <div>
             <div class="dg-tag">Кураторский отдел</div>

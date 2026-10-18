@@ -1168,7 +1168,7 @@ def doctors_list(request):
         "title": "Врачи",
         "page_obj": page_obj,
         "total_count": paginator.count,
-        "directions": directions_ctx,
+        "directions": Doctor._meta.get_field("direction").choices,
         "query": query,
         "direction_filter": direction_filter,
         "status_filter": status_filter,
@@ -2985,11 +2985,12 @@ def doc_checks(request):
 
     history = DocumentCheck.objects.select_related(
         "case", "case__patient", "case__curator", "checked_by"
-    ).order_by("-created_at")[:200]
+    ).order_by("-created_at")
     if request.user.role == CustomUser.Role.CURATOR:
         history = history.filter(case__curator=request.user)
     elif curator_id:
         history = history.filter(case__curator_id=curator_id)
+    history = history[:200]
 
     return render(request, "crm/doc_checks.html", {
         "title": "Проверка документов",

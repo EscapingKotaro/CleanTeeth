@@ -293,7 +293,7 @@ class TreatmentPlan(models.Model):
             return False
         if self.plan_type == self.PlanType.WITH_ADVANCE:
             return self.has_advance and self.is_schedule_signed
-        if self.plan_type == self.PlanType.BY_FACT:
+        if self.plan_type == self.PlanType.WITHOUT_ADVANCE:
             return True
         return False
 

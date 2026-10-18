@@ -121,7 +121,7 @@ class TreatmentPlanAdmin(admin.ModelAdmin):
     autocomplete_fields = ("patient")
     readonly_fields = ("created_at", "updated_at")
     list_select_related = ("patient")
-     filter_horizontal = ("doctors",) 
+    filter_horizontal = ("doctors",) 
     inlines = [PlanDirectionInline, PaymentScheduleInline, PaymentInline]
 
     fieldsets = (

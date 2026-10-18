@@ -734,3 +734,21 @@ button:not(.btn-primary):hover, .btn:not(.btn-primary):hover { transform: transl
   color: var(--dg-main);
   text-decoration-color: var(--dg-main);
 }
+
+
+/* Метрики КПЛ: всегда в одну строку, компактнее на узких экранах */
+.dg-metrics-row .dg-muted { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-metrics-row .dg-value { font-size: 18px; word-break: break-word; }
+
+@media (max-width: 900px) {
+  .dg-metrics-row .dg-panel { padding: 10px 6px !important; }
+  .dg-metrics-row .dg-muted { font-size: 10px; }
+  .dg-metrics-row .dg-value { font-size: 15px; }
+}
+
+@media (max-width: 560px) {
+  .dg-metrics-row { gap: 6px !important; }
+  .dg-metrics-row .dg-panel { padding: 8px 4px !important; }
+  .dg-metrics-row .dg-muted { font-size: 9px; }
+  .dg-metrics-row .dg-value { font-size: 13px; }
+}

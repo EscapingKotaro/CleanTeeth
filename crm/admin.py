@@ -1,21 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import (
-    AuditLog,
-    Contract,
-    CuratorCase,
-    CuratorMonthlyPlan,
-    CustomUser,
-    Doctor,
-    LostReason,
-    Patient,
-    Payment,
-    PaymentSchedule,
-    PlanDirection,
-    Task,
-    TreatmentPlan,
-)
+from .models import *
 
 
 # ============================================================

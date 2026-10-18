@@ -54,20 +54,12 @@ class ContractAdmin(admin.ModelAdmin):
 @admin.register(Doctor)
 class DoctorAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "last_name", "first_name", 
-        "phone", "is_active", "ident_doctor_id",
+        "id", "last_name", "first_name", "middle_name",
+        "phone", "email", "is_active", "ident_doctor_id",
     )
-    list_display_links = ("id", "last_name", "first_name")
-    search_fields = ("first_name", "last_name", "middle_name", "phone", "ident_doctor_id")
-    list_filter = ("is_active")
-    readonly_fields = ("created_at", "updated_at")
-    fieldsets = (
-        ("Основные данные", {"fields": ("last_name", "first_name", "middle_name", "direction")}),
-        ("Контакты", {"fields": ("phone", "email")}),
-        ("Статус", {"fields": ("is_active",)}),
-        ("Интеграция", {"fields": ("ident_doctor_id",), "classes": ("collapse",)}),
-        ("Прочее", {"fields": ("comment", "created_at", "updated_at"), "classes": ("collapse",)}),
-    )
+    list_filter = ("is_active",)                      # ← был строкой/с direction
+    search_fields = ("last_name", "first_name", "middle_name", "phone", "email", "ident_doctor_id")
+    ordering = ("last_name", "first_name")
 
 
 # ============================================================
@@ -95,38 +87,29 @@ class PaymentInline(admin.TabularInline):
 @admin.register(TreatmentPlan)
 class TreatmentPlanAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "patient",  "plan_type", "agreed_sum",
-        "presentation_date", "agreement_date", "is_signed_by_patient", "is_ready_for_work",
+        "id", "patient", "doctors_list", "plan_type", "agreed_sum",
+        "presentation_date", "agreement_date",
+        "is_signed_by_patient", "is_schedule_signed", "created_at",
     )
-    list_display_links = ("id", "patient")
-    search_fields = (
-        "patient__first_name", "patient__last_name",
-        "patient__phone", "doctor__last_name", "doctor__first_name",
-    )
-    list_filter = ("plan_type", "is_signed_by_patient", "is_schedule_signed", "agreement_date", "doctor")
-    autocomplete_fields = ("patient")
+    list_filter = ("plan_type", "is_signed_by_patient", "is_schedule_signed")  # ← 'doctor' убран
+    search_fields = ("patient__last_name", "patient__first_name", "patient__phone", "ident_treatment_plan_id")
+    list_select_related = ("patient",)                # ← кортеж, не строка
+    raw_id_fields = ("patient", "contract")           # ← вместо autocomplete (не требует search_fields у связанных админок)
+    filter_horizontal = ("doctors",)                    # удобное назначение нескольких врачей
     readonly_fields = ("created_at", "updated_at")
-    list_select_related = ("patient")
-    filter_horizontal = ("doctors",) 
-    inlines = [PlanDirectionInline, PaymentScheduleInline, PaymentInline]
 
     fieldsets = (
-        ("Участники", {"fields": ("patient")}),
+        ("Основное", {"fields": ("patient", "doctors", "contract", "plan_type")}),          # ← fields кортежем
         ("Суммы", {"fields": ("initial_sum", "presentation_sum", "agreed_sum")}),
-        ("Даты и статусы", {
-            "fields": (
-                "presentation_date", "presentation_result", "agreement_date",
-                "is_signed_by_patient", "plan_type", "is_schedule_signed",
-                "start_date", "end_date",
-            ),
-        }),
-        ("Интеграция", {"fields": ("ident_treatment_plan_id",), "classes": ("collapse",)}),
-        ("Системное", {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
+        ("Даты и результаты", {"fields": ("presentation_date", "agreement_date", "presentation_result", "start_date", "end_date")}),
+        ("Подписи", {"fields": ("is_signed_by_patient", "is_schedule_signed")}),
+        ("Интеграция", {"fields": ("ident_treatment_plan_id",)}),
+        ("Служебное", {"fields": ("created_at", "updated_at")}),
     )
 
-    @admin.display(boolean=True, description="Готов к работе")
-    def is_ready_for_work(self, obj):
-        return obj.is_ready_for_work
+    @admin.display(description="Врачи")
+    def doctors_list(self, obj):
+        return ", ".join(str(d) for d in obj.doctors.all()) or "—"
 
 
 @admin.register(PlanDirection)

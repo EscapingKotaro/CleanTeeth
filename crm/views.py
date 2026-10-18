@@ -645,6 +645,7 @@ def patient_update(request, patient_id):
 @login_required
 def plan_update(request, plan_id):
     if request.method == 'POST':
+        plan = TreatmentPlan.objects.get(id=plan_id)
         old_values = {
             "initial_sum": plan.initial_sum,
             "presentation_sum": plan.presentation_sum,
@@ -653,7 +654,6 @@ def plan_update(request, plan_id):
             "presentation_date": plan.presentation_date,
             "agreement_date": plan.agreement_date,
         }
-        plan = TreatmentPlan.objects.get(id=plan_id)
         plan.initial_sum = request.POST.get('initial_sum', 0)
         plan.presentation_sum = request.POST.get('presentation_sum', 0)
         plan.agreed_sum = request.POST.get('agreed_sum', 0)
@@ -1211,7 +1211,6 @@ def doctor_update(request, doctor_id):
     doctor.middle_name = request.POST.get("middle_name", "").strip()
     doctor.phone = request.POST.get("phone", "").strip()
     doctor.email = request.POST.get("email", "").strip()
-    doctor.direction = request.POST.get("direction", "")
     doctor.is_active = request.POST.get("is_active") == "on"
     doctor.ident_doctor_id = request.POST.get("ident_doctor_id", "").strip() or None
     doctor.comment = request.POST.get("comment", "").strip()
@@ -2455,15 +2454,18 @@ def next_workorder_number(d):
 def patient_detail(request, patient_id):
     """Карточка пациента: связанные объекты и история."""
     patient = get_object_or_404(Patient, id=patient_id)
-    
-    # Связанные объекты
+
     contracts = patient.contracts.order_by("-date", "-id")
-    plans = TreatmentPlan.objects.filter(patient=patient).select_related("doctor", "contract").order_by("-id")
-    cases = CuratorCase.objects.filter(plan__patient=patient).select_related("curator").order_by("-created_at")
-    
-    # История из AuditLog (последние 50 записей по пациенту)
+    # doctor убран (больше не FK), doctors — через prefetch_related
+    plans = TreatmentPlan.objects.filter(
+        patient=patient
+    ).select_related("contract").prefetch_related("doctors").order_by("-id")
+    cases = CuratorCase.objects.filter(
+        plan__patient=patient
+    ).select_related("curator").order_by("-created_at")
+
     patient_logs = AuditLog.objects.filter(patient=patient).select_related("actor", "owner")[:100]
-    
+
     return render(request, "crm/patient_detail.html", {
         "title": f"{patient.last_name} {patient.first_name}",
         "patient": patient,

@@ -1,5 +1,5 @@
 import threading
-from .models import AuditLog
+from .models import *
 
 _thread_locals = threading.local()
 

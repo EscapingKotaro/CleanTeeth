@@ -53,8 +53,7 @@
     <section class="dg-panel" x-show="tab === 'contracts'">
         <div class="dg-panelhead">
             <h2>Договоры</h2>
-            <a href="{% url 'crm:contract_create' patient.id %}" class="btn-primary">+ Новый договор</a>
-        </div>
+            <a href="{% url 'crm:contract_create' patient.id %}" class="btn btn-primary" style="padding:6px 14px;font-size:13px;">+ Новый договор</a>
         {% if contracts %}
         <table class="dg-table">
             <thead>

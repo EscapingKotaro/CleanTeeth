@@ -990,7 +990,7 @@ def case_change_status(request, case_id):
                 case=case,
                 task_type=Task.TaskType.NEXT_STAGE,
                 description="Контроль следующего визита",
-                due_date=datetime.combine(case.next_control_date, time(9, 0)),
+                due_date=datetime.combine(case.next_control_date, dtime(9, 0)),
                 assignee=case.curator,
                 priority=Task.Priority.MEDIUM,
             )

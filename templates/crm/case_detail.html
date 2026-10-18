@@ -306,24 +306,24 @@
             </div>
 
             <!-- Сводка -->
-            <div class="dg-metrics">
-                <div class="dg-panel" style="margin:0;">
+            <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px;" class="dg-metrics-row">
+                <div class="dg-panel" style="margin:0;padding:14px 10px;">
                     <p class="dg-muted">Согласованная</p>
                     <div class="dg-value">{{ case.plan.agreed_sum|floatformat:0 }} ₽</div>
                 </div>
-                <div class="dg-panel" style="margin:0;">
+                <div class="dg-panel" style="margin:0;padding:14px 10px;">
                     <p class="dg-muted">Аванс</p>
                     <div class="dg-value">{{ case.plan.advance_paid|floatformat:0 }} ₽</div>
                 </div>
-                <div class="dg-panel" style="margin:0;">
+                <div class="dg-panel" style="margin:0;padding:14px 10px;">
                     <p class="dg-muted">Оплачено</p>
                     <div class="dg-value">{{ case.plan.total_paid|floatformat:0 }} ₽</div>
                 </div>
-                <div class="dg-panel" style="margin:0;">
+                <div class="dg-panel" style="margin:0;padding:14px 10px;">
                     <p class="dg-muted">Остаток</p>
                     <div class="dg-value">{{ case.remaining|floatformat:0 }} ₽</div>
                 </div>
-                                <div class="dg-panel" style="margin:0;">
+                <div class="dg-panel" style="margin:0;padding:14px 10px;">
                     <p class="dg-muted">Закрыто нарядами</p>
                     <div class="dg-value" style="color:var(--dg-purple);">{{ case.plan.workorders_total|floatformat:0 }} ₽</div>
                 </div>

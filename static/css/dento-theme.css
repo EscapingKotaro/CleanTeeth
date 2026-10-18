@@ -714,3 +714,23 @@ button:not(.btn-primary):hover, .btn:not(.btn-primary):hover { transform: transl
   overflow-y: auto;
   background: var(--dg-solid);
 }
+
+.dg-main a:not(.btn):not(.btn-primary):not(.dg-badge):not([class*="dg-"]) {
+  color: var(--dg-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--dg-text) 40%, transparent);
+  text-underline-offset: 2px;
+  transition: color .15s ease, text-decoration-color .15s ease;
+}
+.dg-main a:not(.btn):not(.btn-primary):not(.dg-badge):not([class*="dg-"]):hover {
+  color: var(--dg-main);
+  text-decoration-color: var(--dg-main);
+}
+.dg-main a:not(.btn):not(.btn-primary):not(.dg-badge):not([class*="dg-"]):visited {
+  color: var(--dg-text);          /* убираем фиолетовый у посещённых */
+  text-decoration-color: color-mix(in srgb, var(--dg-text) 40%, transparent);
+}
+.dg-main a:not(.btn):not(.btn-primary):not(.dg-badge):not([class*="dg-"]):visited:hover {
+  color: var(--dg-main);
+  text-decoration-color: var(--dg-main);
+}

@@ -3,7 +3,7 @@
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div x-data="{ filter: 'all', dragId: null, dragDate: null, dragOver: null, modalTask: null }">
+<div x-data="{ filter: 'all', dragId: null, dragDate: null, dragOver: null, modalTask: null, currentCaseId: null }">
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
         <div>
@@ -138,7 +138,7 @@
                     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
                         <a :href="modalTask.caseUrl" class="btn">Открыть КПЛ</a>
                         <a :href="modalTask.patientUrl" class="btn">Открыть пациента</a>
-                        <button type="button" @click="modal = 'create_task'; modalTask = null" class="btn">+ Следующая задача</button>
+                        <button type="button" @click="currentCaseId = modalTask.caseId; modal = 'create_task'; modalTask = null" class="btn">+ Следующая задача</button>
                     </div>
 
                     <!-- Перенос -->
@@ -202,7 +202,7 @@
      <!-- МОДАЛКА: СОЗДАТЬ ЗАДАЧУ (быстрое действие из плана дня) -->
     <div x-show="modal === 'create_task'" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
     <div x-show="modal === 'create_task'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
-        <form method="post" :action="'{% url 'crm:task_create' 0 %}'.replace('/0/', '/' + modalTask.caseId + '/')" class="dg-panel"
+        <form method="post" :action="'{% url 'crm:task_create' 0 %}'.replace('/0/', '/' + currentCaseId + '/')" class="dg-panel"
               style="max-width:480px;width:100%;margin:0;background:var(--dg-solid);max-height:90vh;overflow-y:auto;" @click.stop>
             {% csrf_token %}
             <input type="hidden" name="next" value="{% url 'crm:day_plan' %}{% if mine_only %}?mine=1{% endif %}">

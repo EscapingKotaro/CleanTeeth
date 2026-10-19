@@ -3,7 +3,7 @@
 {% block title %}{{ title }} · Dento CRM{% endblock %}
 
 {% block content %}
-<div x-data="{ filter: 'all', dragId: null, dragDate: null, dragOver: null, modalTask: null, currentCaseId: null }">
+<div x-data="{ filter: 'all', dragId: null, dragDate: null, dragOver: null, modalTask: null, currentCaseId: null, modal: null }">
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
         <div>
@@ -191,13 +191,7 @@
             f.submit();
         }
     </script>
-    <div x-data="{}" style="display:none;"></div>
-    <script>
-        // регистрируем dropTask в скоупе Alpine
-        document.addEventListener('alpine:init', () => {
-            Alpine.magic('noop', () => () => {});
-        });
-    </script>
+
 
      <!-- МОДАЛКА: СОЗДАТЬ ЗАДАЧУ (быстрое действие из плана дня) -->
     <div x-show="modal === 'create_task'" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>

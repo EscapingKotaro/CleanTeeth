@@ -1022,29 +1022,32 @@ def case_change_status(request, case_id):
 
 @login_required
 def task_create(request, case_id):
+    """Создать задачу по КПЛ."""
     case = get_object_or_404(CuratorCase, id=case_id)
+    back = _next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id})
+
+    if request.method != "POST":
+        return redirect(back)
+
+    due_date = _parse_dt(request.POST.get("due_date", "")) or (timezone.now() + timedelta(days=1))
+
+    task = Task.objects.create(
+        case=case,
+        task_type=request.POST.get("task_type") or Task.TaskType.CONTACT,
+        description=request.POST.get("description", "").strip() or "Без описания",
+        due_date=due_date,
+        assignee_id=request.POST.get("assignee_id") or case.curator_id,
+        priority=request.POST.get("priority") or Task.Priority.MEDIUM,
+    )
     touch_case(case)
-    if request.method == "POST":
-        due_dt = _parse_dt(request.POST.get("due_date"))
-        if not due_dt:
-            messages.error(request, "Укажите дату и время задачи.")
-        else:
-            Task.objects.create(
-                case=case,
-                task_type=request.POST.get("task_type") or Task.TaskType.CONTACT,
-                description=request.POST.get("description", "").strip(),
-                due_date=due_dt,
-                assignee_id=request.POST.get("assignee_id") or case.curator_id or request.user.id,
-                priority=request.POST.get("priority") or Task.Priority.MEDIUM,
-            )
-            log_action(
+    log_action(
         action=AuditLog.Action.CREATE, instance=task,
         field_name="task",
         new_value=f"{task.get_task_type_display()} · {task.due_date:%d.%m.%Y %H:%M}",
         comment="Задача создана",
     )
-            messages.success(request, "Задача создана.")
-    return redirect("crm:case_detail", case_id=case_id)
+    messages.success(request, "Задача создана.")
+    return redirect(back)
 
 
 @login_required

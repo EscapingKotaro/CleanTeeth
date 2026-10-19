@@ -216,20 +216,7 @@
                 <label class="dg-muted" style="display:grid;gap:6px;">Дата и время
                     <input type="datetime-local" name="due_date" value="{% now 'Y-m-d\TH:i' %}" step="any">
                 </label>
-                <label class="dg-muted" style="display:grid;gap:6px;">Приоритет
-                    <select name="priority">
-                        {% for value, label in priorities %}
-                        <option value="{{ value }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-                <label class="dg-muted" style="display:grid;gap:6px;">Ответственный
-                    <select name="assignee_id">
-                        {% for u in curators %}
-                        <option value="{{ u.id }}" {% if u.id == user.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
+
             </div>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
                 <button type="button" @click="modal = null">Отмена</button>

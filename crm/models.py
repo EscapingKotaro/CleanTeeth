@@ -1094,3 +1094,129 @@ class FinanceAdjustment(models.Model):
 
     def __str__(self):
         return f"{self.get_kind_display()} · {self.amount} ₽ · {self.event_date:%d.%m.%Y}"
+
+
+
+CRITICAL_FIELDS = {
+    "agreed_sum", "plan_type", "status", "curator", "payment", "work_order",
+    "adjustment", "scheme", "monthly_plan", "lost_potential_sum", "lost_reason",
+    "next_visit",
+}
+CRITICAL_ACTIONS = [AuditLog.Action.DELETE, AuditLog.Action.REASSIGN]
+
+
+def _audit_queryset(request, start, end):
+    """Общий queryset журнала с фильтрами из GET (используют страница и CSV)."""
+    from django.db.models import F, Q
+
+    qs = AuditLog.objects.select_related("actor", "owner", "case", "patient").filter(
+        created_at__date__range=(start, end)
+    )
+
+    actor_id = request.GET.get("actor", "")
+    owner_id = request.GET.get("owner", "")
+    action_f = request.GET.get("action", "")
+    model_f = request.GET.get("model", "")
+    sub_only = request.GET.get("sub") == "1"
+    crit_only = request.GET.get("crit") == "1"
+    q = request.GET.get("q", "").strip()
+
+    if actor_id:
+        qs = qs.filter(actor_id=actor_id)
+    if owner_id:
+        qs = qs.filter(owner_id=owner_id)
+    if action_f:
+        qs = qs.filter(action=action_f)
+    if model_f:
+        qs = qs.filter(model_name=model_f)
+    if sub_only:
+        qs = qs.filter(actor_id__isnull=False, owner_id__isnull=False).exclude(actor_id=F("owner_id"))
+    if crit_only:
+        qs = qs.filter(
+            Q(action__in=CRITICAL_ACTIONS)
+            | Q(field_name__in=CRITICAL_FIELDS)
+            | Q(amount__isnull=False)
+        )
+    if q:
+        qs = qs.filter(
+            Q(object_repr__icontains=q) | Q(comment__icontains=q)
+            | Q(new_value__icontains=q) | Q(old_value__icontains=q)
+        )
+    return qs
+
+
+@manager_required
+def audit_log(request):
+    """Общий журнал работы: критичные события, категории, люди, подмены (ТЗ гл.11)."""
+    if request.user.role not in LEAD_ROLES:
+        messages.error(request, "Раздел доступен руководителям.")
+        return redirect("crm:home")
+
+    now = timezone.now()
+    today = now.date()
+    period = request.GET.get("period", "week")
+    start, end = _resolve_period(request, today)
+
+    qs = _audit_queryset(request, start, end)
+
+    # Счётчики для чипов (по периоду, без фильтров действия/подмены/критичности)
+    base = AuditLog.objects.filter(created_at__date__range=(start, end))
+    actor_id = request.GET.get("actor", "")
+    if actor_id:
+        base = base.filter(actor_id=actor_id)
+    action_counts = {a: base.filter(action=a).count() for a, _ in AuditLog.Action.choices}
+    sub_count = base.filter(actor_id__isnull=False, owner_id__isnull=False).exclude(
+        actor_id=models.F("owner_id")
+    ).count()
+    crit_count = base.filter(
+        models.Q(action__in=CRITICAL_ACTIONS)
+        | models.Q(field_name__in=CRITICAL_FIELDS)
+        | models.Q(amount__isnull=False)
+    ).count()
+    amount_sum = base.aggregate(s=Coalesce(Sum("amount"), Decimal("0")))["s"]
+
+    paginator = Paginator(qs, 100)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "crm/audit_log.html", {
+        "title": "Журнал работы",
+        "page_obj": page_obj,
+        "period": period, "start": start, "end": end,
+        "action_counts": action_counts,
+        "sub_count": sub_count,
+        "crit_count": crit_count,
+        "amount_sum": amount_sum,
+        "users": CustomUser.objects.all().order_by("last_name", "first_name"),
+        "models_list": AuditLog.objects.values_list("model_name", flat=True).distinct().order_by("model_name"),
+        "actions": AuditLog.Action.choices,
+        "params": request.GET,
+    })
+
+
+@manager_required
+def audit_log_export(request):
+    """Выгрузка журнала в CSV (те же фильтры, что на странице)."""
+    import csv as csv_mod
+    today = timezone.now().date()
+    start, end = _resolve_period(request, today)
+    qs = _audit_queryset(request, start, end)[:5000]
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+    response["Content-Disposition"] = f'attachment; filename="audit_{start:%Y-%m-%d}_{end:%Y-%m-%d}.csv"'
+    writer = csv_mod.writer(response, delimiter=";", lineterminator="\n")
+    writer.writerow(["Когда", "Исполнитель", "Владелец", "Подмена", "Действие",
+                     "Объект", "КПЛ", "Пациент", "Поле", "Было", "Стало", "Сумма", "Комментарий"])
+    for log in qs:
+        writer.writerow([
+            f"{log.created_at:%d.%m.%Y %H:%M}",
+            log.actor.get_full_name() or (log.actor.username if log.actor else "система"),
+            log.owner.get_full_name() or (log.owner.username if log.owner else ""),
+            "ДА" if log.is_substitution else "",
+            log.get_action_display(),
+            log.object_repr,
+            f"#{log.case_id}" if log.case_id else "",
+            str(log.patient) if log.patient else "",
+            log.field_name, log.old_value, log.new_value,
+            log.amount or "", log.comment,
+        ])
+    return response

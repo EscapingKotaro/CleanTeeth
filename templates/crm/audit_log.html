@@ -1,0 +1,113 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ title }} · Dento CRM{% endblock %}
+
+{% block content %}
+<div class="dg-heading">
+    <div>
+        <div class="dg-tag">Контроль</div>
+        <h1>Журнал работы</h1>
+        <p class="dg-muted">{{ start|date:"d.m.Y" }} — {{ end|date:"d.m.Y" }} · записей: {{ page_obj.paginator.count }} · суммы событий: {{ amount_sum|floatformat:0 }} ₽</p>
+    </div>
+    <a href="{% url 'crm:audit_log_export' %}?{{ request.GET.urlencode }}" class="btn">⬇ Выгрузить CSV</a>
+</div>
+
+<!-- Чипы действий -->
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+    {% for value, label in actions %}
+    <a href="?{% for k, v in params.items %}{% if k != 'action' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}action={{ value }}"
+       style="text-decoration:none;"
+       class="dg-badge {% if params.action == value %}b-blue{% endif %}">{{ label }} · {{ action_counts|default_if_none:0|add:0 }}</a>
+    {% endfor %}
+    <a href="?{% for k, v in params.items %}{% if k != 'sub' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sub=1"
+       style="text-decoration:none;"
+       class="dg-badge {% if params.sub == '1' %}b-warn{% endif %}">Подмены · {{ sub_count }}</a>
+    <a href="?{% for k, v in params.items %}{% if k != 'crit' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}crit=1"
+       style="text-decoration:none;"
+       class="dg-badge {% if params.crit == '1' %}b-red{% endif %}">Критичные · {{ crit_count }}</a>
+</div>
+
+<!-- Фильтры -->
+<section class="dg-panel">
+    <form method="get" class="dg-toolbar">
+        <select name="period" onchange="this.form.submit()">
+            <option value="day" {% if period == 'day' %}selected{% endif %}>День</option>
+            <option value="week" {% if period == 'week' %}selected{% endif %}>Неделя</option>
+            <option value="month" {% if period == 'month' %}selected{% endif %}>Месяц</option>
+            <option value="quarter" {% if period == 'quarter' %}selected{% endif %}>Квартал</option>
+            <option value="custom" {% if period == 'custom' %}selected{% endif %}>Произвольный</option>
+        </select>
+        <input type="date" name="from" value="{{ start|date:'Y-m-d' }}">
+        <input type="date" name="to" value="{{ end|date:'Y-m-d' }}">
+        <select name="actor" onchange="this.form.submit()">
+            <option value="">Все исполнители</option>
+            {% for u in users %}<option value="{{ u.id }}" {% if params.actor == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+        </select>
+        <select name="owner" onchange="this.form.submit()">
+            <option value="">Все владельцы</option>
+            {% for u in users %}<option value="{{ u.id }}" {% if params.owner == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+        </select>
+        <select name="model" onchange="this.form.submit()">
+            <option value="">Все объекты</option>
+            {% for m in models_list %}<option value="{{ m }}" {% if params.model == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+        </select>
+        <input type="search" name="q" value="{{ params.q }}" placeholder="Поиск: объект, комментарий, значения...">
+        <button type="submit" class="btn-primary" style="margin-left:auto;">Показать</button>
+    </form>
+</section>
+
+<!-- Таблица журнала -->
+<section class="dg-panel">
+    <div style="overflow-x:auto;">
+    <table class="dg-table dg-table-sm">
+        <thead>
+            <tr><th>Когда</th><th>Исполнитель</th><th>Действие</th><th>Объект</th><th>Изменение</th><th>Сумма</th><th>Комментарий</th></tr>
+        </thead>
+        <tbody>
+            {% for log in page_obj %}
+            <tr {% if log.action == 'DELETE' or log.action == 'REASSIGN' %}style="background:color-mix(in srgb, var(--dg-red) 5%, transparent);"{% endif %}>
+                <td class="dg-muted" style="white-space:nowrap;">{{ log.created_at|date:"d.m.Y H:i" }}</td>
+                <td>
+                    {{ log.actor.get_full_name|default:log.actor.username|default:"система" }}
+                    {% if log.is_substitution %}<span class="dg-badge b-warn" title="Исполнитель ≠ владелец пациента">подмена</span>{% endif %}
+                    {% if log.owner_id and log.actor_id == log.owner_id %}<span class="dg-badge b-blue">владелец</span>{% endif %}
+                </td>
+                <td>
+                    <span class="dg-badge
+                        {% if log.action == 'CREATE' %}b-green
+                        {% elif log.action == 'DELETE' %}b-red
+                        {% elif log.action == 'COMPLETE' %}b-purple
+                        {% elif log.action == 'REASSIGN' %}b-warn
+                        {% elif log.action == 'STATUS' %}b-blue{% endif %}">{{ log.get_action_display }}</span>
+                </td>
+                <td>
+                    {% if log.case_id %}<a href="{% url 'crm:case_detail' log.case_id %}" style="color:inherit;">{{ log.object_repr|default:log.model_name }}</a>
+                    {% elif log.patient_id %}<a href="{% url 'crm:patient_detail' log.patient_id %}" style="color:inherit;">{{ log.object_repr|default:log.model_name }}</a>
+                    {% else %}{{ log.object_repr|default:log.model_name }}{% endif %}
+                </td>
+                <td>
+                    {% if log.field_name %}<b>{{ log.field_name }}</b>: {% endif %}
+                    {% if log.old_value %}{{ log.old_value|truncatechars:40 }} → {% endif %}{{ log.new_value|truncatechars:60|default:"—" }}
+                </td>
+                <td>{% if log.amount is not None %}<b>{{ log.amount|floatformat:0 }} ₽</b>{% else %}—{% endif %}</td>
+                <td class="dg-muted">{{ log.comment|truncatechars:50|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="dg-muted" style="padding:24px 10px;text-align:center;">Записей нет</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div style="display:flex;gap:6px;justify-content:center;margin-top:14px;">
+        {% if page_obj.has_previous %}
+        <a class="btn" href="?{% for k, v in params.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">←</a>
+        {% endif %}
+        <span class="dg-muted" style="align-self:center;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a class="btn" href="?{% for k, v in params.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">→</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

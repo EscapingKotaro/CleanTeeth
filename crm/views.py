@@ -2044,6 +2044,24 @@ def manager_report(request):
     for u in (curators.filter(pk=curator_id) if curator_id else curators):
         rows.append((u.get_full_name() or u.username, compute_curator_metrics(u, start, end, today, now)))
 
+    # Агрегированный summary для старой части шаблона (строки 1 и 2 с плитками)
+    dept_metrics = rows[0][1]  # первая строка = ОТДЕЛ
+    summary = {
+        "active_now": dept_metrics["now"]["active"],
+        "transferred": dept_metrics["funnel"]["transferred"],
+        "presented": dept_metrics["funnel"]["presented"],
+        "in_decision": CuratorCase.objects.filter(status=CuratorCase.Status.IN_DECISION).count(),
+        "agreed": dept_metrics["funnel"]["agreed"],
+        "in_progress": dept_metrics["funnel"]["in_progress"],
+        "completed": dept_metrics["funnel"]["completed"],
+        "lost": dept_metrics["funnel"]["lost"],
+        "sum_agreed": dept_metrics["agreed_sum"],
+        "sum_paid": dept_metrics["payments"],
+        "remainder": dept_metrics["now"]["remainder"],
+        "overdue_tasks": dept_metrics["now"]["overdue"],
+        "no_next": dept_metrics["now"]["no_next"],
+    }
+
     # Детализация сопровождений за период
     cases_qs = CuratorCase.objects.filter(curator__role=CustomUser.Role.CURATOR)
     if curator_id:
@@ -2069,6 +2087,7 @@ def manager_report(request):
         "curator_id": curator_id, "status_filter": status_filter,
         "curators": curators, "statuses": CuratorCase.Status.choices,
         "rows": rows, "detail_rows": detail_rows,
+        "summary": summary,  # ← для плиток в строках 1 и 2
     })
 
 
@@ -2586,13 +2605,13 @@ def motivation_schemes(request):
         scheme = MotivationScheme.objects.create(
             name=request.POST.get("name", "").strip() or "Модель без названия",
             valid_from=parse_date(request.POST.get("valid_from", "")) or timezone.now().date(),
-            bonus1_rate=_to_decimal(request.POST.get("bonus1_rate", "0.007"), 4),
-            bonus2_rate=_to_decimal(request.POST.get("bonus2_rate", "0.002"), 4),
-            under100_penalty_rate=_to_decimal(request.POST.get("under100_penalty_rate", "1"), 2),
-            over110_bonus_rate=_to_decimal(request.POST.get("over110_bonus_rate", "0.2"), 2),
-            threshold_mid=_to_decimal(request.POST.get("threshold_mid", "100"), 2),
-            threshold_high=_to_decimal(request.POST.get("threshold_high", "110"), 2),
-            daily_rate=_to_decimal(request.POST.get("daily_rate", "1000"), 2),
+            bonus1_rate=_to_decimal(request.POST.get("bonus1_rate", "0.007")).quantize(Decimal("0.0001")),
+            bonus2_rate=_to_decimal(request.POST.get("bonus2_rate", "0.002")).quantize(Decimal("0.0001")),
+            under100_penalty_rate=_to_decimal(request.POST.get("under100_penalty_rate", "1")).quantize(Decimal("0.01")),
+            over110_bonus_rate=_to_decimal(request.POST.get("over110_bonus_rate", "0.2")).quantize(Decimal("0.01")),
+            threshold_mid=_to_decimal(request.POST.get("threshold_mid", "100")).quantize(Decimal("0.01")),
+            threshold_high=_to_decimal(request.POST.get("threshold_high", "110")).quantize(Decimal("0.01")),
+            daily_rate=_to_decimal(request.POST.get("daily_rate", "1000")).quantize(Decimal("0.01")),
             comment=request.POST.get("comment", "").strip(),
         )
         log_action(
@@ -2931,6 +2950,12 @@ def doc_checks(request):
     cases = CuratorCase.objects.filter(
         status__in=[CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS]
     ).select_related("patient", "plan", "plan__doctor", "curator").prefetch_related("document_checks")
+    # ↑ убран "doctor" (его больше нет как FK), добавлен "plan__doctor" для совместимости
+    # но plan__doctor тоже не нужен (M2M), поэтому можно вообще убрать:
+    cases = CuratorCase.objects.filter(
+        status__in=[CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS]
+    ).select_related("patient", "plan", "curator").prefetch_related("document_checks", "plan__doctors")
+
     if request.user.role == CustomUser.Role.CURATOR:
         cases = cases.filter(curator=request.user)
     elif curator_id:
@@ -2943,7 +2968,7 @@ def doc_checks(request):
             "case": c,
             "docs": docs_state(c),
             "check": c.document_checks.first(),
-            "doctors": list(p.doctors.all()),
+            "doctors": list(p.doctors.all()),  # ← M2M
             "plan_type": p.get_plan_type_display() or "—",
             "initial_sum": p.initial_sum,
             "presentation_sum": p.presentation_sum,

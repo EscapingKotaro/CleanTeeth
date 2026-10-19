@@ -82,4 +82,7 @@ urlpatterns = [
     path("registers/adjustment/create/", views.adjustment_create, name="adjustment_create"),
 
     path("manager/reports/export/", views.manager_report_export, name="manager_report_export"),
+
+    path("manager/audit/", views.audit_log, name="audit_log"),
+    path("manager/audit/export/", views.audit_log_export, name="audit_log_export"),
 ]

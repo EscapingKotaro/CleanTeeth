@@ -116,7 +116,7 @@
         <div class="dg-panelhead"><h2>Текущее состояние (на сегодня)</h2><span class="dg-muted">не зависит от периода</span></div>
         <div style="overflow-x:auto;">
         <table class="dg-table dg-table-sm">
-            <thead><tr><th style="text-align:left;">Куратор</th><th>Активных КПЛ</th><th>Остаток (дебиторка)</th><th>Просроченные задачи</th><th>Без следующего действия</th></tr></thead>
+            <thead><tr><th style="text-align:left;">Куратор</th><th>Активных КПЛ</th><th>Остаток</th><th>Просроченные задачи</th><th>Без следующего действия</th></tr></thead>
             <tbody>
                 {% for name, m in rows %}
                 <tr {% if forloop.first %}style="font-weight:600;background:var(--dg-soft);"{% endif %}>

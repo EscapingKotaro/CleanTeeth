@@ -34,7 +34,7 @@
                 <span>Только мои</span>
             </label>
         </form>
-        <p class="dg-muted">{{ not_done }} не сделано · {{ done_count }} сделано · блоки можно перетаскивать</p>
+        <p class="dg-muted">{{ not_done }} не сделано · {{ done_count }} сделано</p>
 
         <!-- Сетка расписания -->
         <div class="dp-schedule">
@@ -52,7 +52,7 @@
                          x-show="filter === 'all' || (filter === 'done') === {% if task.status == 'DONE' %}true{% else %}false{% endif %}"
                          @dragstart="dragId = {{ task.id }}; dragDate = '{{ task.due_date|date:"Y-m-d" }}'"
                          @dragend="dragId = null"
-                         @click="{% if task.status == 'DONE' %}window.location.href='{% url 'crm:case_detail' task.case.id %}'{% else %}modalTask = { id: {{ task.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: false, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}' }{% endif %}">
+                        @click="{% if task.status == 'DONE' %}window.location.href='{% url 'crm:case_detail' task.case.id %}'{% else %}modalTask = { id: {{ task.id }}, caseId: {{ task.case.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: false, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}', patientUrl: '{% url 'crm:patient_detail' task.case.patient.id %}' }{% endif %}">
                          <span class="dp-time">{{ task.due_date|date:"H:i" }}</span>
                         <div style="min-width:0;">
                             <p class="dp-action">{{ task.description|default:task.get_task_type_display }}</p>
@@ -79,7 +79,7 @@
             <div class="dp-event {% if task.is_overdue %}dp-overdue{% endif %}{% if task.status == 'DONE' %}dp-completed{% endif %}"
                  style="cursor:pointer;margin-bottom:6px;"
                  x-show="filter === 'all' || (filter === 'done') === {% if task.status == 'DONE' %}true{% else %}false{% endif %}"
-                 @click="modalTask = { id: {{ task.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: {% if task.status == 'DONE' %}true{% else %}false{% endif %}, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}', patientUrl: '{% url 'crm:patient_detail' task.case.patient.id %}' }">
+                 @click="modalTask = { id: {{ task.id }}, caseId: {{ task.case.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: {% if task.status == 'DONE' %}true{% else %}false{% endif %}, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}', patientUrl: '{% url 'crm:patient_detail' task.case.patient.id %}' }">
                 <span class="dp-time">{{ task.due_date|date:"H:i" }}</span>
                 <div style="min-width:0;"><p class="dp-action">{{ task.description|default:task.get_task_type_display }}</p></div>
                 <div class="dp-patient">{{ task.case.patient.last_name }} {{ task.case.patient.first_name }}</div>
@@ -134,14 +134,11 @@
                     </p>
 
                     <!-- Быстрые действия -->
+                                        <!-- Быстрые действия -->
                     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
                         <a :href="modalTask.caseUrl" class="btn">Открыть КПЛ</a>
                         <a :href="modalTask.patientUrl" class="btn">Открыть пациента</a>
-                        <form method="post" :action="'{% url 'crm:task_next_create' 0 %}'.replace('/0/', '/' + modalTask.id + '/')" style="margin:0;">
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{% url 'crm:day_plan' %}{% if mine_only %}?mine=1{% endif %}">
-                            <button type="submit" class="btn">+ Следующая (завтра)</button>
-                        </form>
+                        <button type="button" @click="modal = 'create_task'; modalTask = null" class="btn">+ Следующая задача</button>
                     </div>
 
                     <!-- Перенос -->
@@ -201,6 +198,53 @@
             Alpine.magic('noop', () => () => {});
         });
     </script>
+
+     <!-- МОДАЛКА: СОЗДАТЬ ЗАДАЧУ (быстрое действие из плана дня) -->
+    <div x-show="modal === 'create_task'" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
+    <div x-show="modal === 'create_task'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" :action="'{% url 'crm:task_create' 0 %}'.replace('/0/', '/' + modalTask.caseId + '/')" class="dg-panel"
+              style="max-width:480px;width:100%;margin:0;background:var(--dg-solid);max-height:90vh;overflow-y:auto;" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:day_plan' %}{% if mine_only %}?mine=1{% endif %}">
+            <div class="dg-panelhead"><h2>Создать задачу</h2></div>
+            <p class="dg-muted">Задача будет создана для того же КПЛ, что и текущая.</p>
+            <div style="display:grid;gap:12px;margin-top:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Тип задачи
+                    <select name="task_type">
+                        {% for value, label in task_types %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Описание
+                    <textarea name="description" rows="2" placeholder="Что сделать..."></textarea>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Дата и время
+                    <input type="datetime-local" name="due_date" value="{% now 'Y-m-d\TH:i' %}" step="any">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Приоритет
+                    <select name="priority">
+                        {% for value, label in priorities %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Ответственный
+                    <select name="assignee_id">
+                        {% for u in curators %}
+                        <option value="{{ u.id }}" {% if u.id == user.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Создать задачу</button>
+            </div>
+        </form>
+    </div>
+
+
 </div>
 
 <script>

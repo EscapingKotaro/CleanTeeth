@@ -1770,7 +1770,7 @@ def motivation_page(request):
 def monthly_plan_upsert(request):
     """Управляющая задаёт/правит индивидуальный план куратора на месяц."""
     if request.method != "POST":
-        return redirect("crm:motivation_page")
+        return redirect("crm:motivation")
 
     curator_id = request.POST.get("curator_id")
     year = int(request.POST.get("year", timezone.now().year))
@@ -1782,14 +1782,15 @@ def monthly_plan_upsert(request):
     scheme = get_object_or_404(MotivationScheme, id=scheme_id) if scheme_id else None
     if not scheme:
         messages.error(request, "Выберите модель мотивации — расчёт без модели не выполняется.")
-        return redirect("crm:motivation")
+        return redirect(f"{reverse('crm:motivation')}?user_id={curator.id}")
 
+    # lookup только по уникальной тройке (curator, year, month); всё остальное — в defaults
     plan, created = CuratorMonthlyPlan.objects.update_or_create(
-        curator=curator, year=year, month=month, scheme = scheme, 
+        curator=curator, year=year, month=month,
         defaults={
+            "scheme": scheme,
             "plan_amount": _to_decimal(request.POST.get("plan_amount")),
-            "adjustments": _to_decimal(request.POST.get("adjustments")),
-            "workorders_amount": _to_decimal(request.POST.get("workorders_amount")),
+            "adjustments": _to_decimal(request.POST.get("adjustments", 0)),
             "workorders_adjustment": _to_decimal(request.POST.get("workorders_adjustment", 0)),
             "set_by": request.user,
             "work_days": int(request.POST.get("work_days", 0) or 0),
@@ -1800,11 +1801,14 @@ def monthly_plan_upsert(request):
         action=AuditLog.Action.UPDATE if not created else AuditLog.Action.CREATE,
         instance=plan,
         field_name="monthly_plan",
-        new_value=f"план {plan.plan_amount}, корр. {plan.adjustments}, з/н {plan.workorders_amount}",
+        new_value=(
+            f"план {plan.plan_amount}, корр. {plan.adjustments}, "
+            f"з/н рук. {plan.workorders_adjustment}"
+        ),
         comment=f"Месячный план {curator} на {month:02d}.{year}",
     )
     messages.success(request, f"План для {curator} на {month:02d}.{year} сохранён.")
-    return redirect(f"{reverse('crm:motivation_page')}?user_id={curator.id}")
+    return redirect(f"{reverse('crm:motivation')}?user_id={curator.id}")
 
 @login_required
 def contract_create(request, patient_id):

@@ -479,66 +479,50 @@ from .models import CuratorMonthlyPlan, CustomUser
 
 @login_required
 def motivation(request):
-    """Мотивация: куратор видит свою, старший/управляющая — любого куратора."""
-    today = timezone.now().date()
+    now = timezone.now()
+    today = now.date()
     can_manage = request.user.role in LEAD_ROLES
-
     user_id = request.GET.get("user_id")
     if can_manage and user_id:
         target_user = get_object_or_404(CustomUser, id=user_id)
     else:
-        # Куратор всегда видит только свою мотивацию, даже если подделал user_id
         target_user = request.user
-
-    # Старший куратор и управляющая могут смотреть любого куратора
-    if request.user.role in (
-        CustomUser.Role.SENIOR_CURATOR, CustomUser.Role.MANAGER, CustomUser.Role.ADMIN
-    ):
-        user_id = request.GET.get("user_id")
-        if user_id:
-            target_user = get_object_or_404(CustomUser, id=user_id)
 
     monthly_plan = CuratorMonthlyPlan.objects.filter(
         curator=target_user, year=today.year, month=today.month
     ).first()
 
-    breakdown_plans = []
-    breakdown_orders = []
+    # Расшифровка исходных сумм
+    breakdown_plans = breakdown_orders = []
     if monthly_plan:
         breakdown_plans = TreatmentPlan.objects.filter(
             cases__curator=target_user,
             agreement_date__year=monthly_plan.year,
             agreement_date__month=monthly_plan.month,
-        ).exclude(cases__status=CuratorCase.Status.LOST).distinct().select_related(
-            "patient"
-        ).order_by("agreement_date")
-
+        ).exclude(cases__status=CuratorCase.Status.LOST).distinct().select_related("patient").order_by("agreement_date")
         breakdown_orders = WorkOrder.objects.filter(
             plan__cases__curator=target_user,
             closed_date__year=monthly_plan.year,
             closed_date__month=monthly_plan.month,
         ).select_related("plan__patient").order_by("closed_date")
 
-    history = CuratorMonthlyPlan.objects.filter(curator=target_user).order_by("-year", "-month")[:12]
+    history = CuratorMonthlyPlan.objects.filter(curator=target_user).exclude(
+        year=today.year, month=today.month
+    ).order_by("-year", "-month")
 
-    curators = CustomUser.objects.filter(
-        role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
-    ).order_by("last_name")
-
-    can_manage = request.user.role in (CustomUser.Role.MANAGER, CustomUser.Role.ADMIN)
+    curators = CustomUser.objects.filter(role=CustomUser.Role.CURATOR).order_by("last_name", "first_name")
 
     return render(request, "crm/motivation.html", {
         "title": "Мотивация",
         "target_user": target_user,
         "monthly_plan": monthly_plan,
-        "history": history,
-        "curators": curators,
-        "is_own": target_user.id == request.user.id,
-        "can_manage": can_manage,
-        "use_sidebar": False,
         "breakdown_plans": breakdown_plans,
         "breakdown_orders": breakdown_orders,
-        "schemes": MotivationScheme.objects.all(),
+        "history": history,
+        "can_manage": can_manage,
+        "is_own": target_user == request.user,
+        "curators": curators,
+        "schemes": MotivationScheme.objects.all(),  # ← всегда в контексте
     })
 
 # осторожно! говнокод

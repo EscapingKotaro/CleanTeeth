@@ -176,7 +176,7 @@
                 <label class="dg-muted" style="display:grid;gap:6px;">Рабочих дней
                     <input type="number" name="work_days" value="{{ monthly_plan.work_days }}">
                 </label>
-                                <label class="dg-muted" style="display:grid;gap:6px;">Модель мотивации <span style="color:var(--dg-warn);">*</span>
+                                <label class="dg-muted" style="display:grid;gap:6px;">Модель мотивации
                     <select name="scheme_id" required>
                         <option value="">Выберите модель</option>
                         {% for s in schemes %}
@@ -209,10 +209,10 @@
             <input type="hidden" name="month" value="{% now 'n' %}">
             <input type="hidden" name="adjustments" value="0">
             <input type="hidden" name="workorders_adjustment" value="0">
-            <label class="dg-muted" style="display:grid;gap:6px;">План, ₽ <span style="color:var(--dg-warn);">*</span>
+            <label class="dg-muted" style="display:grid;gap:6px;">План, ₽ 
                 <input type="number" step="0.01" name="plan_amount" required>
             </label>
-            <label class="dg-muted" style="display:grid;gap:6px;">Модель мотивации <span style="color:var(--dg-warn);">*</span>
+            <label class="dg-muted" style="display:grid;gap:6px;">Модель мотивации 
                 <select name="scheme_id" required>
                     <option value="">Выберите модель</option>
                     {% for s in schemes %}

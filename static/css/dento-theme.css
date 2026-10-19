@@ -769,3 +769,17 @@ button:not(.btn-primary):hover, .btn:not(.btn-primary):hover { transform: transl
 .dg-funnel-step.optional .dg-funnel-label { font-style: italic; }
 .dg-funnel-line { flex: 1 0 14px; min-width: 14px; height: 2px; border-radius: 1px; background: var(--dg-line); }
 .dg-funnel-line.past { background: var(--dg-main); }
+
+
+@media (max-width: 900px) {
+  .dg-funnel {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .dg-funnel-line {
+    display: none;
+  }
+  .dg-funnel-step {
+    flex: 0 0 auto;
+  }
+}

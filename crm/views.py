@@ -3043,6 +3043,57 @@ def _resolve_period(request, today):
     # по умолчанию — текущий месяц, конец = сегодня
     return today.replace(day=1), today
 
+
+CRITICAL_FIELDS = {
+    "agreed_sum", "plan_type", "status", "curator", "payment", "work_order",
+    "adjustment", "scheme", "monthly_plan", "lost_potential_sum", "lost_reason",
+    "next_visit",
+}
+CRITICAL_ACTIONS = [AuditLog.Action.DELETE, AuditLog.Action.REASSIGN]
+
+
+def _audit_queryset(request, start, end):
+    """Общий queryset журнала с фильтрами из GET (используют страница и CSV)."""
+    from django.db.models import F, Q
+
+    qs = AuditLog.objects.select_related("actor", "owner", "case", "patient").filter(
+        created_at__date__range=(start, end)
+    )
+
+    actor_id = request.GET.get("actor", "")
+    owner_id = request.GET.get("owner", "")
+    action_f = request.GET.get("action", "")
+    model_f = request.GET.get("model", "")
+    sub_only = request.GET.get("sub") == "1"
+    crit_only = request.GET.get("crit") == "1"
+    q = request.GET.get("q", "").strip()
+
+    if actor_id:
+        qs = qs.filter(actor_id=actor_id)
+    if owner_id:
+        qs = qs.filter(owner_id=owner_id)
+    if action_f:
+        qs = qs.filter(action=action_f)
+    if model_f:
+        qs = qs.filter(model_name=model_f)
+    if sub_only:
+        qs = qs.filter(actor_id__isnull=False, owner_id__isnull=False).exclude(actor_id=F("owner_id"))
+    if crit_only:
+        qs = qs.filter(
+            Q(action__in=CRITICAL_ACTIONS)
+            | Q(field_name__in=CRITICAL_FIELDS)
+            | Q(amount__isnull=False)
+        )
+    if q:
+        qs = qs.filter(
+            Q(object_repr__icontains=q) | Q(comment__icontains=q)
+            | Q(new_value__icontains=q) | Q(old_value__icontains=q)
+        )
+    return qs
+
+
+
+
 @manager_required
 def audit_log(request):
     """Общий журнал работы: критичные события, категории, люди, подмены (ТЗ гл.11)."""

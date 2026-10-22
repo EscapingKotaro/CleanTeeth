@@ -546,93 +546,96 @@
     </script>
 
 
-    <!-- Общий бэкдроп -->
-    <div x-show="modal" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
+    <template x-teleport="body">
+        <div>
+            <!-- Общий бэкдроп -->
+            <div x-show="modal" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
 
-    {% include "crm/partials/modals/contract_create.html" %}
-    {% include "crm/partials/modals/contract_edit.html" %}
-    {% include "crm/partials/modals/patient_edit.html" %}
-    {% include "crm/partials/modals/plan_edit.html" %}
-    {% include "crm/partials/modals/plan_sign.html" %}
-    {% include "crm/partials/modals/directions.html" %}
-    {% include "crm/partials/modals/schedule_item_create.html" %}
-    {% include "crm/partials/modals/schedule_item_edit.html" %}
-    {% include "crm/partials/modals/schedule_item_delete.html" %}
-    {% include "crm/partials/modals/schedule_sign.html" %}
-    {% include "crm/partials/modals/payment.html" %}
-    {% include "crm/partials/modals/task_create.html" %}
-    {% include "crm/partials/modals/task_complete.html" %}
-    {% include "crm/partials/modals/task_postpone.html" %}
-    {% include "crm/partials/modals/case_presented.html" %}
-    {% include "crm/partials/modals/case_decision.html" %}
-    {% include "crm/partials/modals/case_agreed.html" %}
-    {% include "crm/partials/modals/case_in_progress.html" %}
-    {% include "crm/partials/modals/case_complete.html" %}
-    {% include "crm/partials/modals/case_lost.html" %}
+            {% include "crm/partials/modals/contract_create.html" %}
+            {% include "crm/partials/modals/contract_edit.html" %}
+            {% include "crm/partials/modals/patient_edit.html" %}
+            {% include "crm/partials/modals/plan_edit.html" %}
+            {% include "crm/partials/modals/plan_sign.html" %}
+            {% include "crm/partials/modals/directions.html" %}
+            {% include "crm/partials/modals/schedule_item_create.html" %}
+            {% include "crm/partials/modals/schedule_item_edit.html" %}
+            {% include "crm/partials/modals/schedule_item_delete.html" %}
+            {% include "crm/partials/modals/schedule_sign.html" %}
+            {% include "crm/partials/modals/payment.html" %}
+            {% include "crm/partials/modals/task_create.html" %}
+            {% include "crm/partials/modals/task_complete.html" %}
+            {% include "crm/partials/modals/task_postpone.html" %}
+            {% include "crm/partials/modals/case_presented.html" %}
+            {% include "crm/partials/modals/case_decision.html" %}
+            {% include "crm/partials/modals/case_agreed.html" %}
+            {% include "crm/partials/modals/case_in_progress.html" %}
+            {% include "crm/partials/modals/case_complete.html" %}
+            {% include "crm/partials/modals/case_lost.html" %}
 
-    <!-- СЛЕДУЮЩИЙ ВИЗИТ -->
-    <div x-show="modal === 'next_visit'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
-        <form method="post" action="{% url 'crm:case_next_visit' case.id %}" class="dg-panel"
-              style="max-width:480px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
-            <div class="dg-panelhead"><h2>Следующий визит</h2></div>
-            <div style="display:grid;gap:12px;">
-                <label class="dg-muted" style="display:grid;gap:6px;">Дата визита
-                    <input type="date" name="next_control_date" value="{{ case.next_control_date|date:'Y-m-d' }}">
-                </label>
-                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий к визиту (нюансы для себя)
-                    <textarea name="next_visit_comment" rows="3"
-                              placeholder="Что подготовить, о чём договориться, предупреждения...">{{ case.next_visit_comment }}</textarea>
-                </label>
+            <!-- СЛЕДУЮЩИЙ ВИЗИТ -->
+            <div x-show="modal === 'next_visit'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+                <form method="post" action="{% url 'crm:case_next_visit' case.id %}" class="dg-panel"
+                      style="max-width:480px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
+                    <div class="dg-panelhead"><h2>Следующий визит</h2></div>
+                    <div style="display:grid;gap:12px;">
+                        <label class="dg-muted" style="display:grid;gap:6px;">Дата визита
+                            <input type="date" name="next_control_date" value="{{ case.next_control_date|date:'Y-m-d' }}">
+                        </label>
+                        <label class="dg-muted" style="display:grid;gap:6px;">Комментарий к визиту (нюансы для себя)
+                            <textarea name="next_visit_comment" rows="3"
+                                      placeholder="Что подготовить, о чём договориться, предупреждения...">{{ case.next_visit_comment }}</textarea>
+                        </label>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                        <button type="button" @click="modal = null">Отмена</button>
+                        <button type="submit" class="btn-primary">Сохранить</button>
+                    </div>
+                </form>
             </div>
-            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
-                <button type="button" @click="modal = null">Отмена</button>
-                <button type="submit" class="btn-primary">Сохранить</button>
-            </div>
-        </form>
-    </div>
 
-        <!-- НАРЯД НА ЛЕЧЕНИЕ -->
-    <div x-show="modal === 'work_order'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
-        <form method="post" action="{% url 'crm:work_order_create' case.plan.id %}" class="dg-panel"
-              style="max-width:440px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
-            <div class="dg-panelhead"><h2>Закрыть наряд</h2></div>
+            <!-- НАРЯД НА ЛЕЧЕНИЕ -->
+            <div x-show="modal === 'work_order'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+                <form method="post" action="{% url 'crm:work_order_create' case.plan.id %}" class="dg-panel"
+                      style="max-width:440px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
+                    <div class="dg-panelhead"><h2>Закрыть наряд</h2></div>
+                    <div style="display:grid;gap:12px;margin-top:12px;">
+                        <label class="dg-muted" style="display:grid;gap:6px;">Сумма, ₽ 
+                            <input type="number" step="0.01" name="amount" required>
+                        </label>
+                        <label class="dg-muted" style="display:grid;gap:6px;">Дата закрытия
+                            <input type="date" name="closed_date" value="{% now 'Y-m-d' %}">
+                        </label>
+                        <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
+                            <input type="text" name="comment" placeholder="Какие работы закрыты...">
+                        </label>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                        <button type="button" @click="modal = null">Отмена</button>
+                        <button type="submit" class="btn-primary">Закрыть наряд</button>
+                    </div>
+                </form>
+            </div>
 
-            <div style="display:grid;gap:12px;margin-top:12px;">
-                <label class="dg-muted" style="display:grid;gap:6px;">Сумма, ₽ 
-                    <input type="number" step="0.01" name="amount" required>
-                </label>
-                <label class="dg-muted" style="display:grid;gap:6px;">Дата закрытия
-                    <input type="date" name="closed_date" value="{% now 'Y-m-d' %}">
-                </label>
-                <label class="dg-muted" style="display:grid;gap:6px;">Комментарий
-                    <input type="text" name="comment" placeholder="Какие работы закрыты...">
-                </label>
+            <!-- УДАЛИТЬ НАРЯД -->
+            <div x-show="modal === 'delete_work_order'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+                <form method="post" :action="'{% url 'crm:work_order_delete' 0 %}'.replace('/0/', '/' + deleteWO.id + '/')" class="dg-panel"
+                      style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
+                    <div class="dg-panelhead"><h2>Удалить наряд?</h2></div>
+                    <p>Наряд «<span x-text="deleteWO.label"></span>» будет удалён. Действие попадёт в журнал.</p>
+                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                        <button type="button" @click="modal = null">Отмена</button>
+                        <button type="submit" style="border-color:var(--dg-warn);color:var(--dg-warn);">Удалить</button>
+                    </div>
+                </form>
             </div>
-            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
-                <button type="button" @click="modal = null">Отмена</button>
-                <button type="submit" class="btn-primary">Закрыть наряд</button>
-            </div>
-        </form>
-    </div>
-
-    <!-- УДАЛИТЬ НАРЯД -->
-    <div x-show="modal === 'delete_work_order'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
-        <form method="post" :action="'{% url 'crm:work_order_delete' 0 %}'.replace('/0/', '/' + deleteWO.id + '/')" class="dg-panel"
-              style="max-width:420px;width:100%;margin:0;background:var(--dg-solid);" @click.stop>
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{% url 'crm:case_detail' case.id %}">
-            <div class="dg-panelhead"><h2>Удалить наряд?</h2></div>
-            <p>Наряд «<span x-text="deleteWO.label"></span>» будет удалён. Действие попадёт в журнал.</p>
-            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
-                <button type="button" @click="modal = null">Отмена</button>
-                <button type="submit" style="border-color:var(--dg-warn);color:var(--dg-warn);">Удалить</button>
-            </div>
-        </form>
-    </div>
+        </div>
+    </template>
 
 </div>
 {% endblock %}

@@ -226,5 +226,33 @@
             }
         }
     </script>
+
+    <div id="modal-root"></div>
+
+        <script>
+        // Автоматическая телепортация модалок в #modal-root
+        document.addEventListener('alpine:init', () => {
+            Alpine.directive('modal-portal', (el, { expression }, { evaluate }) => {
+                const root = document.getElementById('modal-root');
+                if (root && el.parentNode !== root) {
+                    root.appendChild(el);
+                }
+            });
+        });
+
+        // Перемещаем все модалки при загрузке
+        document.addEventListener('DOMContentLoaded', () => {
+            const root = document.getElementById('modal-root');
+            if (root) {
+                document.querySelectorAll('.fixed.inset-0.z-40, .fixed.inset-0.z-50').forEach(modal => {
+                    if (modal.parentNode !== root) {
+                        root.appendChild(modal);
+                    }
+                });
+            }
+        });
+    </script>
+
+    
 </body>
 </html>

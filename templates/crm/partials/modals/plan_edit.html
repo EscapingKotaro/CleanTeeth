@@ -43,6 +43,18 @@
                     {% endfor %}
                 </select>
             </label>
+                        {% if can_reassign %}
+            <label class="dg-muted" style="display:grid;gap:6px;">Ответственный куратор
+                <select name="curator_id">
+                    {% for u in curators %}
+                    <option value="{{ u.id }}" {% if u.id == case.curator_id %}selected{% endif %}>
+                        {{ u.get_full_name|default:u.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <span style="font-size:11px;">Смена ответственного попадёт в журнал как «Смена ответственного».</span>
+            </label>
+            {% endif %}
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
             <button type="button" @click="modal = null">Отмена</button>

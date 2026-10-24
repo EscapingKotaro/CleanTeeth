@@ -449,8 +449,9 @@ def case_detail(request, case_id):
         "plan_types": TreatmentPlan.PlanType.choices,
         "lost_reasons": LostReason.objects.filter(is_active=True),
         "curators": CustomUser.objects.filter(
-            role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
-        ),
+            Q(role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR])
+            | Q(id=case.curator_id)
+        ).distinct().order_by("last_name", "first_name"),
         "use_sidebar": True,
         "transitions": transitions,
         "funnel_steps": funnel_steps,
@@ -461,6 +462,7 @@ def case_detail(request, case_id):
         "directions": directions_ctx,
         "payment_categories": Payment.PaymentCategory.choices,
         "doctors": Doctor.objects.filter(is_active=True).order_by("last_name", "first_name"),
+        "can_reassign": request.user.role in LEAD_ROLES,
     })
 
 
@@ -646,6 +648,21 @@ def plan_update(request, plan_id):
         plan.plan_type = request.POST.get('plan_type', '')
         plan.is_signed_by_patient = request.POST.get('is_signed_by_patient') == 'true'
         plan.doctors.set([i for i in request.POST.getlist("doctor_ids") if i.isdigit()])
+        case = plan.cases.select_related("curator").first()
+        new_curator_id = request.POST.get("curator_id")
+        if case and new_curator_id and request.user.role in LEAD_ROLES:
+            new_curator = get_object_or_404(CustomUser, id=new_curator_id)
+            if new_curator != case.curator:
+                old_curator = case.curator
+                case.curator = new_curator
+                case.save(update_fields=["curator"])
+                log_action(
+                    action=AuditLog.Action.REASSIGN, instance=case,
+                    field_name="curator",
+                    old_value=str(old_curator), new_value=str(new_curator),
+                    comment="Смена ответственного куратора (редактирование плана)",
+                )
+                messages.success(request, f"Ответственный куратор изменён: {new_curator}.")
         plan.save()
         for f, old in old_values.items():
             new = getattr(plan, f)
@@ -1005,13 +1022,40 @@ def case_change_status(request, case_id):
 
 
 @login_required
-def task_create(request, case_id):
-    """Создать задачу по КПЛ."""
-    case = get_object_or_404(CuratorCase, id=case_id)
-    back = _next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id})
+def task_create(request, case_id=None):
+    """Создать задачу по КПЛ или standalone (для lead-ролей)."""
+    back = _next_url(request) or reverse("crm:day_plan")
 
     if request.method != "POST":
         return redirect(back)
+
+    # Standalone задача (без КПЛ) — только для lead-ролей
+    assignee_id = request.POST.get("assignee_id")
+    if not case_id:
+        if request.user.role not in LEAD_ROLES:
+            messages.error(request, "Недостаточно прав для создания задачи без КПЛ.")
+            return redirect(back)
+        assignee = get_object_or_404(CustomUser, id=assignee_id) if assignee_id else request.user
+        task = Task.objects.create(
+            case=None,
+            task_type=request.POST.get("task_type") or Task.TaskType.OTHER,
+            description=request.POST.get("description", "").strip() or "Без описания",
+            due_date=_parse_dt(request.POST.get("due_date", "")) or (timezone.now() + timedelta(days=1)),
+            assignee=assignee,
+            priority=request.POST.get("priority") or Task.Priority.MEDIUM,
+        )
+        log_action(
+            action=AuditLog.Action.CREATE, instance=task,
+            field_name="task",
+            new_value=f"Задача для {assignee.get_full_name()}: {task.description[:50]}",
+            comment="Создана standalone задача",
+        )
+        messages.success(request, f"Задача создана для {assignee.get_full_name()}.")
+        return redirect(back)
+
+    # Обычная задача по КПЛ
+    case = get_object_or_404(CuratorCase, id=case_id)
+    back = _next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id})
 
     due_date = _parse_dt(request.POST.get("due_date", "")) or (timezone.now() + timedelta(days=1))
 
@@ -1032,7 +1076,6 @@ def task_create(request, case_id):
     )
     messages.success(request, "Задача создана.")
     return redirect(back)
-
 
 @login_required
 def task_complete(request, task_id):
@@ -2098,7 +2141,10 @@ def day_plan(request):
     today = now.date()
     mine_only = request.GET.get("mine") == "1"
 
-    base = Task.objects.select_related("case", "case__patient", "assignee")
+    base = Task.objects.filter(
+        Q(assignee=user) | Q(case__curator=user),
+        status=Task.TaskStatus.PENDING,
+    ).select_related("case", "case__patient", "assignee").order_by("due_date")
     if mine_only:
         base = base.filter(assignee=request.user)
 
@@ -2149,6 +2195,8 @@ def day_plan(request):
             if t.status == Task.TaskStatus.PENDING and not t.is_overdue
         ),
         "upcoming_count": upcoming.count(),
+        "can_create_standalone": request.user.role in LEAD_ROLES,
+        "curators": CustomUser.objects.filter(role=CustomUser.Role.CURATOR).order_by("last_name", "first_name"),
     })
 
 

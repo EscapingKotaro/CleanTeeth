@@ -10,6 +10,12 @@
             <h1>{{ title }}</h1>
             <p class="dg-muted">Каждый пациент — с понятным следующим шагом</p>
         </div>
+        {% if can_create_standalone %}
+        <button type="button" @click="modal = 'create_standalone_task'" class="btn-primary">
+            <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            + Новая задача
+        </button>
+        {% endif %}
     </div>
 
     <div class="dg-panel">
@@ -52,7 +58,7 @@
                          x-show="filter === 'all' || (filter === 'done') === {% if task.status == 'DONE' %}true{% else %}false{% endif %}"
                          @dragstart="dragId = {{ task.id }}; dragDate = '{{ task.due_date|date:"Y-m-d" }}'"
                          @dragend="dragId = null"
-                        @click="{% if task.status == 'DONE' %}window.location.href='{% url 'crm:case_detail' task.case.id %}'{% else %}modalTask = { id: {{ task.id }}, caseId: {{ task.case.id }}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: false, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}', caseUrl: '{% url 'crm:case_detail' task.case.id %}', patientUrl: '{% url 'crm:patient_detail' task.case.patient.id %}' }{% endif %}">
+                        @click="{% if task.status == 'DONE' %}{% if task.case %}window.location.href='{% url 'crm:case_detail' task.case.id %}'{% endif %}{% else %}modalTask = { id: {{ task.id }}, caseId: {% if task.case %}{{ task.case.id }}{% else %}null{% endif %}, due: '{{ task.due_date|date:"Y-m-d\TH:i" }}', done: false, title: '{{ task.description|default:task.get_task_type_display|escapejs }}', patient: '{% if task.case %}{{ task.case.patient.last_name }} {{ task.case.patient.first_name|escapejs }}{% else %}Standalone задача{% endif %}', caseUrl: '{% if task.case %}{% url 'crm:case_detail' task.case.id %}{% else %}#{% endif %}', patientUrl: '{% if task.case %}{% url 'crm:patient_detail' task.case.patient.id %}{% else %}#{% endif %}' }{% endif %}">
                          <span class="dp-time">{{ task.due_date|date:"H:i" }}</span>
                         <div style="min-width:0;">
                             <p class="dp-action">{{ task.description|default:task.get_task_type_display }}</p>
@@ -136,9 +142,11 @@
                     <!-- Быстрые действия -->
                                         <!-- Быстрые действия -->
                     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-                        <a :href="modalTask.caseUrl" class="btn">Открыть КПЛ</a>
-                        <a :href="modalTask.patientUrl" class="btn">Открыть пациента</a>
-                        <button type="button" @click="currentCaseId = modalTask.caseId; modal = 'create_task'; modalTask = null" class="btn">+ Следующая задача</button>
+                        {% if task.case %}
+                        <a :href="modalTask.caseUrl" class="btn" x-show="modalTask.caseUrl !== '#'">Открыть КПЛ</a>
+                        <a :href="modalTask.patientUrl" class="btn" x-show="modalTask.patientUrl !== '#'">Открыть пациента</a>
+                        {% endif %}
+                        <button type="button" @click="currentCaseId = modalTask.caseId; modal = 'create_task'; modalTask = null" class="btn" x-show="modalTask.caseId">+ Следующая задача</button>
                     </div>
 
                     <!-- Перенос -->
@@ -227,6 +235,51 @@
 
 
 </div>
+
+    <!-- МОДАЛКА: СОЗДАТЬ STANDALONE ЗАДАЧУ (для старшего куратора/руководителя) -->
+    <div x-show="modal === 'create_standalone_task'" x-cloak class="fixed inset-0 z-40" style="background:rgba(20,23,27,.45);" @click="modal = null"></div>
+    <div x-show="modal === 'create_standalone_task'" x-cloak class="fixed inset-0 z-50" style="display:flex;align-items:center;justify-content:center;padding:16px;">
+        <form method="post" action="{% url 'crm:task_create' %}" class="dg-panel"
+              style="max-width:480px;width:100%;margin:0;background:var(--dg-solid);max-height:90vh;overflow-y:auto;" @click.stop>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'crm:day_plan' %}">
+            <div class="dg-panelhead"><h2>Новая задача</h2></div>
+            <p class="dg-muted">Задача будет назначена выбранному куратору.</p>
+            <div style="display:grid;gap:12px;margin-top:12px;">
+                <label class="dg-muted" style="display:grid;gap:6px;">Ответственный <span style="color:var(--dg-warn);">*</span>
+                    <select name="assignee_id" required>
+                        {% for u in curators %}
+                        <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Тип задачи
+                    <select name="task_type">
+                        {% for value, label in task_types %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Описание <span style="color:var(--dg-warn);">*</span>
+                    <textarea name="description" rows="2" required placeholder="Что сделать..."></textarea>
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Дата и время
+                    <input type="datetime-local" name="due_date" value="{% now 'Y-m-d\TH:i' %}" step="any">
+                </label>
+                <label class="dg-muted" style="display:grid;gap:6px;">Приоритет
+                    <select name="priority">
+                        {% for value, label in priorities %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                <button type="button" @click="modal = null">Отмена</button>
+                <button type="submit" class="btn-primary">Создать задачу</button>
+            </div>
+        </form>
+    </div>
 
 <script>
     // привязка dropTask к Alpine-скоупу страницы

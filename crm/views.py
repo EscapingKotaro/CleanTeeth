@@ -2142,7 +2142,7 @@ def day_plan(request):
     mine_only = request.GET.get("mine") == "1"
 
     base = Task.objects.filter(
-        Q(assignee=user) | Q(case__curator=user),
+        Q(assignee=request.user) | Q(case__curator=request.user),
         status=Task.TaskStatus.PENDING,
     ).select_related("case", "case__patient", "assignee").order_by("due_date")
     if mine_only:

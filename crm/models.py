@@ -728,7 +728,7 @@ class Task(models.Model):
         CRITICAL = "4", "Критичный"
 
     case = models.ForeignKey(
-        "CuratorCase", on_delete=models.CASCADE, related_name="tasks", verbose_name="Кейс"
+        "CuratorCase", on_delete=models.CASCADE, null=True, blank=True, related_name="tasks", verbose_name="Кейс"
     )
     task_type = models.CharField(
         "Тип задачи", max_length=30, choices=TaskType.choices, default=TaskType.CONTACT

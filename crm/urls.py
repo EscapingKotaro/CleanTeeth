@@ -23,6 +23,7 @@ urlpatterns = [
     path("cases/", views.cases_list, name="cases_list"),
     path("cases/<int:case_id>/", views.case_detail, name="case_detail"),
     path("cases/<int:case_id>/status/", views.case_change_status, name="case_change_status"),
+    path("tasks/create/", views.task_create, name="task_create"),
     path("cases/<int:case_id>/task/create/", views.task_create, name="task_create"),
     path("tasks/<int:task_id>/complete/", views.task_complete, name="task_complete"),
     path("tasks/<int:task_id>/postpone/", views.task_postpone, name="task_postpone"),

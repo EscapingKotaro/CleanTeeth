@@ -23,7 +23,7 @@ import csv
 
 import json
 
-# ==================== АУТЕНТИФИКАЦИЯ ====================
+
 
 class CustomLoginView(auth_views.LoginView):
     template_name = "registration/login.html"
@@ -99,10 +99,10 @@ def ensure_service_contract(patient):
     нет действующего. Нумерация — сквозная по году.
     """
     if patient.contracts.filter(status=Contract.Status.ACTIVE).exists():
-        return None  # действующий уже покрывает новый план
+        return None  
 
     today = timezone.now().date()
-    for _ in range(5):  # защита от гонки нумерации
+    for _ in range(5): 
         try:
             contract = Contract.objects.create(
                 patient=patient,
@@ -121,7 +121,7 @@ def ensure_service_contract(patient):
         except IntegrityError:
             continue
     return None
-# ==================== CRM СТРАНИЦЫ ====================
+
 
 import calendar
 from datetime import date as date_type
@@ -143,10 +143,10 @@ import calendar
 
 @login_required
 def dashboard(request):
-    """Личный дашборд куратора (ТЗ п.13.1)."""
+    """Личный дашборд куратора."""
     today = date.today()
 
-    # -------- Период фильтрации --------
+
     period = request.GET.get("period", "month")
     if period == "today":
         start_date = end_date = today
@@ -161,18 +161,16 @@ def dashboard(request):
     elif period == "custom":
         start_date = parse_date(request.GET.get("from")) or date(today.year, today.month, 1)
         end_date = parse_date(request.GET.get("to")) or today
-    else:  # month
+    else:  
         start_date = date(today.year, today.month, 1)
         end_date = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
 
-    # -------- Базовые queryset'ы по куратору --------
+
     my_cases = CuratorCase.objects.filter(curator=request.user)
     my_plans = TreatmentPlan.objects.filter(cases__curator=request.user).distinct()
     my_tasks = Task.objects.filter(assignee=request.user)
 
-    # ============================================================
-    # 1. ВОРОНКА: количество кейсов по статусам за период
-    # ============================================================
+
     funnel_stats = {
         "transferred": my_cases.filter(status=CuratorCase.Status.TRANSFERRED, created_at__date__range=(start_date, end_date)).count(),
         "presented": my_cases.filter(status=CuratorCase.Status.PRESENTED, created_at__date__range=(start_date, end_date)).count(),
@@ -183,9 +181,6 @@ def dashboard(request):
         "lost": my_cases.filter(status=CuratorCase.Status.LOST, created_at__date__range=(start_date, end_date)).count(),
     }
 
-    # ============================================================
-    # 2. КОНВЕРСИИ за период
-    # ============================================================
     period_plans = my_plans.filter(
         agreement_date__range=(start_date, end_date),
     )
@@ -200,16 +195,14 @@ def dashboard(request):
     conversion_agreed_to_start = (started_count / agreed_count * 100) if agreed_count else 0
     conversion_start_to_complete = (completed_count / started_count * 100) if started_count else 0
 
-    # ============================================================
-    # 3. ДЕНЬГИ за период (по согласованным планам)
-    # ============================================================
+
     money = period_plans.aggregate(
         sum_presentations=Coalesce(Sum("presentation_sum"), Decimal("0")),
         sum_agreed=Coalesce(Sum("agreed_sum"), Decimal("0")),
         avg_agreed=Coalesce(Avg("agreed_sum"), Decimal("0")),
     )
 
-    # Суммы авансов и оплат (из связанных payments за период)
+
     period_payments = my_plans.filter(
         cases__curator=request.user,
         payments__payment_date__range=(start_date, end_date),
@@ -219,7 +212,7 @@ def dashboard(request):
         sum_paid=Coalesce(Sum("payments__amount", filter=Q(payments__payment_date__range=(start_date, end_date))), Decimal("0")),
     )
 
-    # Остаток = согласовано - оплачено
+
     remaining = money["sum_agreed"] - payments_agg["sum_paid"]
 
     money_stats = {
@@ -231,9 +224,6 @@ def dashboard(request):
         "avg_agreed": money["avg_agreed"],
     }
 
-    # ============================================================
-    # 4. АВАНСЫ за период
-    # ============================================================
     plans_with_advance = period_plans.filter(
         payments__is_advance=True,
         payments__payment_date__range=(start_date, end_date),
@@ -250,9 +240,6 @@ def dashboard(request):
         "percent": round(advance_percent, 1),
     }
 
-    # ============================================================
-    # 5. ОПЕРАЦИОННАЯ РАБОТА (всегда на текущий день, без фильтра по периоду)
-    # ============================================================
     tasks_today = my_tasks.filter(
         status=Task.TaskStatus.PENDING,
         due_date__date=today,
@@ -284,9 +271,6 @@ def dashboard(request):
         "no_next_action": cases_without_next,
     }
 
-    # ============================================================
-    # 6. МОТИВАЦИЯ (текущий месяц)
-    # ============================================================
     monthly_plan = CuratorMonthlyPlan.objects.filter(
         curator=request.user, year=today.year, month=today.month,
     ).first()
@@ -320,7 +304,6 @@ def cases_list(request):
     sort_by = request.GET.get("sort", "-created_at")
     mine_only = request.GET.get("mine") == "1"
 
-    # Базовый queryset: ВСЕ кейсы (кураторы видят друг друга по правилу подмены)
     queryset = CuratorCase.objects.all()
 
     if mine_only:
@@ -333,7 +316,6 @@ def cases_list(request):
     queryset = queryset.order_by(sort_by if sort_by in allowed_sorts else "-created_at")
     queryset = queryset.select_related("patient", "plan", "curator")
 
-    # Данные для модалки создания плана
     patients = Patient.objects.all().order_by("last_name")[:200]
 
     active_contracts = (
@@ -396,7 +378,6 @@ def case_detail(request, case_id):
         id=case_id,
     )
 
-    # Кнопки переходов (с развилкой после презентации)
     transitions = []
     for status in case.next_statuses:
         if status == CuratorCase.Status.IN_PROGRESS and not case.plan.is_ready_for_work:
@@ -408,7 +389,6 @@ def case_detail(request, case_id):
             "style": ui.get("style", "primary"),
         })
 
-    # Шаги воронки для индикатора (с пометкой опционального шага)
     choices = dict(CuratorCase.Status.choices)
     current_idx = (
         CuratorCase.FUNNEL_ORDER.index(case.status)
@@ -423,7 +403,6 @@ def case_detail(request, case_id):
             "is_optional": s == CuratorCase.Status.IN_DECISION,
         })
 
-    # Направления с текущими суммами — для модалки с живым счётчиком
     amount_map = {d.direction: d.amount for d in case.plan.directions.all()}
     directions_ctx = [
         (v, l, amount_map.get(v, Decimal("0")))
@@ -494,7 +473,6 @@ def motivation(request):
         curator=target_user, year=today.year, month=today.month
     ).first()
 
-    # Расшифровка исходных сумм
     breakdown_plans = breakdown_orders = []
     if monthly_plan:
         breakdown_plans = TreatmentPlan.objects.filter(
@@ -524,7 +502,7 @@ def motivation(request):
         "can_manage": can_manage,
         "is_own": target_user == request.user,
         "curators": curators,
-        "schemes": MotivationScheme.objects.all(),  # ← всегда в контексте
+        "schemes": MotivationScheme.objects.all(),  
     })
 
 # осторожно! говнокод
@@ -626,7 +604,7 @@ def patient_update(request, patient_id):
                     comment="Изменение карточки пациента",
                 )
         messages.success(request, "Данные пациента обновлены")
-    return redirect('crm:case_detail', case_id=request.POST.get('case_id', 1)) # Упрощено для примера
+    return redirect('crm:case_detail', case_id=request.POST.get('case_id', 1)) 
 
 @login_required
 def plan_update(request, plan_id):
@@ -733,14 +711,12 @@ def plan_create(request):
         )
         plan.doctors.set([i for i in request.POST.getlist("doctor_ids") if i.isdigit()])
         
-        # Связь с договором (если выбран)
         contract_id = request.POST.get("contract_id")
         if contract_id:
             contract = get_object_or_404(Contract, id=contract_id, patient=patient)
             plan.contract = contract
             plan.save(update_fields=["contract"])
         
-        # Создание кейса
         curator_id = request.POST.get("curator_id") or request.user.id
         case = CuratorCase.objects.create(
             patient=patient,
@@ -776,7 +752,6 @@ def _apply_status_transition(case, new_status, post, user):
     errors = []
     today = timezone.now().date()
 
-    # ===== 2. План презентован =====
     if new_status == CuratorCase.Status.PRESENTED:
         result_text = post.get("presentation_result", "").strip()
         pres_date = parse_date(post.get("presentation_date", "")) or today
@@ -789,7 +764,6 @@ def _apply_status_transition(case, new_status, post, user):
                 plan.presentation_result = result_text
                 plan.save(update_fields=["presentation_date", "presentation_result"])
 
-    # ===== 3. Решение в работе =====
     elif new_status == CuratorCase.Status.IN_DECISION:
         reason = post.get("decision_reason", "").strip()
         comment = post.get("decision_comment", "").strip()
@@ -807,7 +781,6 @@ def _apply_status_transition(case, new_status, post, user):
             with transaction.atomic():
                 case.decision_reason = reason
                 case.decision_comment = comment
-                # Правило непрерывности: автоматически создаём следующую задачу
                 Task.objects.create(
                     case=case,
                     task_type=next_type,
@@ -817,7 +790,6 @@ def _apply_status_transition(case, new_status, post, user):
                     priority=Task.Priority.HIGH,
                 )
 
-    # ===== 4. План согласован =====
     elif new_status == CuratorCase.Status.AGREED:
         agreed_sum = _to_decimal(post.get("agreed_sum"))
         plan_type = post.get("plan_type", "")
@@ -836,7 +808,6 @@ def _apply_status_transition(case, new_status, post, user):
                 plan.plan_type = plan_type
                 plan.agreement_date = plan.agreement_date or today
                 plan.save(update_fields=["agreed_sum", "plan_type", "agreement_date"])
-             #   ensure_service_contract(case.patient)
                 if next_step:
                     Task.objects.create(
                         case=case,
@@ -847,9 +818,7 @@ def _apply_status_transition(case, new_status, post, user):
                         priority=Task.Priority.HIGH,
                     )
 
-    # ===== 5. Лечение в процессе =====
     elif new_status == CuratorCase.Status.IN_PROGRESS:
-        # План должен быть готов к работе (п.5.3 + п.6 условие выхода)
         if not case.plan.is_ready_for_work:
             if case.plan.plan_type == TreatmentPlan.PlanType.WITH_ADVANCE:
                 errors.append(
@@ -875,7 +844,6 @@ def _apply_status_transition(case, new_status, post, user):
                     priority=Task.Priority.MEDIUM,
                 )
 
-    # ===== 6. Лечение завершено =====
     elif new_status == CuratorCase.Status.COMPLETED:
         with transaction.atomic():
             case.completed_at = today
@@ -886,7 +854,6 @@ def _apply_status_transition(case, new_status, post, user):
                 status=Task.TaskStatus.CANCELLED
             )
 
-    # ===== Закрывающий исход: Отказ / потерян =====
     elif new_status == CuratorCase.Status.LOST:
         lost_date = parse_date(post.get("lost_date", ""))
         lost_reason_id = post.get("lost_reason") or None
@@ -934,7 +901,6 @@ def case_change_status(request, case_id):
     old_status = case.status
     case.status = new_status
 
-    # Специфичные поля для IN_DECISION
     if new_status == CuratorCase.Status.IN_DECISION:
         case.decision_reason = request.POST.get("decision_reason", "").strip()
         case.decision_comment = request.POST.get("decision_comment", "").strip()
@@ -946,7 +912,6 @@ def case_change_status(request, case_id):
             except ValueError:
                 messages.warning(request, "Некорректная дата следующего действия.")
 
-    # Специфичные поля для LOST
     if new_status == CuratorCase.Status.LOST:
         lost_date_str = request.POST.get("lost_date", "")
         if lost_date_str:
@@ -955,14 +920,12 @@ def case_change_status(request, case_id):
         case.lost_potential_sum = _to_decimal(request.POST.get("lost_potential_sum", 0))
         case.lost_comment = request.POST.get("lost_comment", "").strip()
 
-    # Специфичные поля для AGREED
     if new_status == CuratorCase.Status.AGREED:
         case.plan.agreed_sum = _to_decimal(request.POST.get("agreed_sum", 0))
         case.plan.plan_type = request.POST.get("plan_type", "")
         case.plan.agreement_date = timezone.now().date()
         case.plan.save(update_fields=["agreed_sum", "plan_type", "agreement_date"])
 
-        # Создание задачи из "Дальнейший шаг"
         next_step = request.POST.get("next_step", "").strip()
         if next_step:
             Task.objects.create(
@@ -974,7 +937,6 @@ def case_change_status(request, case_id):
                 priority=Task.Priority.MEDIUM,
             )
 
-    # Специфичные поля для PRESENTED
     if new_status == CuratorCase.Status.PRESENTED:
         pres_date_str = request.POST.get("presentation_date", "")
         if pres_date_str:
@@ -982,12 +944,10 @@ def case_change_status(request, case_id):
         case.plan.presentation_result = request.POST.get("presentation_result", "").strip()
         case.plan.save(update_fields=["presentation_date", "presentation_result"])
 
-    # Специфичные поля для IN_PROGRESS
     if new_status == CuratorCase.Status.IN_PROGRESS:
         next_control_str = request.POST.get("next_control_date", "")
         if next_control_str:
             case.next_control_date = parse_date(next_control_str)
-        # Создание задачи контроля
         if case.next_control_date:
             Task.objects.create(
                 case=case,
@@ -998,7 +958,6 @@ def case_change_status(request, case_id):
                 priority=Task.Priority.MEDIUM,
             )
 
-    # Завершение лечения — отмена активных задач
     if new_status == CuratorCase.Status.COMPLETED:
         case.tasks.filter(status=Task.TaskStatus.PENDING).update(
             status=Task.TaskStatus.CANCELLED,
@@ -1029,7 +988,6 @@ def task_create(request, case_id=None):
     if request.method != "POST":
         return redirect(back)
 
-    # Standalone задача (без КПЛ) — только для lead-ролей
     assignee_id = request.POST.get("assignee_id")
     if not case_id:
         if request.user.role not in LEAD_ROLES:
@@ -1053,7 +1011,6 @@ def task_create(request, case_id=None):
         messages.success(request, f"Задача создана для {assignee.get_full_name()}.")
         return redirect(back)
 
-    # Обычная задача по КПЛ
     case = get_object_or_404(CuratorCase, id=case_id)
     back = _next_url(request) or reverse("crm:case_detail", kwargs={"case_id": case.id})
 
@@ -1088,8 +1045,6 @@ def task_complete(request, task_id):
     if request.method != "POST":
         return redirect(back)
 
-    # ТЗ гл.4: последняя задача АКТИВНОГО КПЛ требует следующего действия.
-    # Для закрытого КПЛ (COMPLETED/LOST) не требует.
     is_last_active = bool(case) and case.is_active and not case.tasks.filter(
         status=Task.TaskStatus.PENDING
     ).exclude(id=task.id).exists()
@@ -1187,7 +1142,6 @@ def doctors_list(request):
     paginator = Paginator(queryset, 15)
     page_obj = paginator.get_page(request.GET.get("page"))
 
-    # Сохраняем параметры поиска при переходах по страницам
     search_params = request.GET.copy()
     search_params.pop("page", None)
     search_params = search_params.urlencode()
@@ -1201,7 +1155,6 @@ def doctors_list(request):
         "query": query,
         "status_filter": status_filter,
         "search_params": search_params,
-        # без сайдбаров
     })
 
 
@@ -1255,8 +1208,6 @@ def doctor_delete(request, doctor_id):
     if request.method != "POST":
         return redirect("crm:doctors_list")
 
-    # Защита от случайного удаления (ТЗ п.23):
-    # если на врача есть планы — не удаляем, а деактивируем
     if doctor.treatment_plans.exists():
         doctor.is_active = False
         doctor.save(update_fields=["is_active"])
@@ -1277,7 +1228,7 @@ from django.contrib.auth.hashers import make_password
 
 
 def admin_or_manager_required(view_func):
-    """Управление пользователями — только Админ и Управляющая (ТЗ п.16)."""
+    """Управление пользователями — только Админ и Управляющая."""
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if request.user.role not in (CustomUser.Role.ADMIN, CustomUser.Role.MANAGER):
@@ -1344,7 +1295,6 @@ def user_create(request):
         role=request.POST.get("role", CustomUser.Role.CURATOR),
         is_active=request.POST.get("is_active") == "on",
     )
-    # Аудит создания сработает автоматически в save()
     messages.success(request, f"Пользователь «{username}» создан.")
     return redirect("crm:users_list")
 
@@ -1360,10 +1310,8 @@ def user_update(request, user_id):
     user.email = request.POST.get("email", "").strip()
     user.phone = request.POST.get("phone", "").strip()
     user.role = request.POST.get("role", user.role)
-    # is_active меняем отдельным действием, здесь не трогаем
-    user.save()  # аудит роли сработает в save()
+    user.save()  
 
-    # Опциональная смена пароля
     new_password = request.POST.get("new_password", "").strip()
     if new_password:
         user.set_password(new_password)
@@ -1383,14 +1331,13 @@ def user_update(request, user_id):
 def user_toggle_active(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)
 
-    # Защита: нельзя деактивировать самого себя
     if user.id == request.user.id:
         messages.error(request, "Нельзя деактивировать собственную учётную запись.")
         return redirect("crm:users_list")
 
     if request.method == "POST":
         user.is_active = not user.is_active
-        user.save(update_fields=["is_active"])  # аудит в save()
+        user.save(update_fields=["is_active"])
         state = "активирован" if user.is_active else "деактивирован"
         messages.success(request, f"Пользователь «{user.username}» {state}.")
     return redirect("crm:users_list")
@@ -1503,7 +1450,6 @@ def patient_delete(request, patient_id):
     if request.method != "POST":
         return redirect("crm:patients_list")
 
-    # Если есть кейсы или планы — не удаляем, а деактивируем
     if patient.cases.exists() or patient.plans.exists():
         patient.is_active = False
         patient.save(update_fields=["is_active"])
@@ -1535,7 +1481,7 @@ def ensure_payment_tasks(case):
         return
 
     today = timezone.now().date()
-    horizon = today + timedelta(days=1)  # напоминаем за 1 день
+    horizon = today + timedelta(days=1)  
 
     items = (
         plan.schedule.filter(due_date__lte=horizon)
@@ -1637,7 +1583,6 @@ def schedule_sign(request, plan_id):
             messages.error(request, "График пуст — сначала добавьте пункты.")
             return redirect("crm:case_detail", case_id=case_id)
 
-        # ПРАВИЛО: сумма графика обязана равняться согласованной сумме
         if plan.schedule_mismatch:
             messages.error(
                 request,
@@ -1657,7 +1602,7 @@ def schedule_sign(request, plan_id):
 
 @login_required
 def plan_sign(request, plan_id):
-    """Подписать план пациентом (отдельная кнопка, ТЗ п.5.3)."""
+    """Подписать план пациентом."""
     plan = get_object_or_404(TreatmentPlan, id=plan_id)
     case_id = plan.cases.first().id if plan.cases.exists() else None
 
@@ -1711,11 +1656,9 @@ def payment_create(request, plan_id):
         comment="Внесён платёж",
     )
 
-    # Если платёж закрывает пункт графика — обновляем
     if payment.schedule_item:
         item = payment.schedule_item
-        item.refresh_from_db()  # пересчитать paid_amount
-        # (свойство paid_amount на модели уже суммирует платежи)
+        item.refresh_from_db()  
 
     messages.success(request, f"Платёж на {amount} ₽ внесён.")
     return redirect(back)
@@ -1754,10 +1697,8 @@ def motivation_page(request):
     if can_manage and user_id:
         target_user = get_object_or_404(CustomUser, id=user_id)
     else:
-        # Куратор всегда видит только свою мотивацию, даже если подделал user_id
         target_user = request.user
 
-    # Старший куратор и управляющая могут смотреть любого куратора
     if request.user.role in (
         CustomUser.Role.SENIOR_CURATOR, CustomUser.Role.MANAGER, CustomUser.Role.ADMIN
     ):
@@ -1788,7 +1729,6 @@ def motivation_page(request):
 
     history = CuratorMonthlyPlan.objects.filter(curator=target_user).order_by("-year", "-month")[:12]
 
-    # Список кураторов для переключателя (для руководителей)
     curators = CustomUser.objects.filter(
         role__in=[CustomUser.Role.CURATOR, CustomUser.Role.SENIOR_CURATOR]
     ).order_by("last_name")
@@ -1827,7 +1767,6 @@ def monthly_plan_upsert(request):
         messages.error(request, "Выберите модель мотивации — расчёт без модели не выполняется.")
         return redirect(f"{reverse('crm:motivation')}?user_id={curator.id}")
 
-    # lookup только по уникальной тройке (curator, year, month); всё остальное — в defaults
     plan, created = CuratorMonthlyPlan.objects.update_or_create(
         curator=curator, year=year, month=month,
         defaults={
@@ -1980,7 +1919,6 @@ def schedule_item_delete(request, item_id):
     if request.method != "POST":
         return redirect("crm:case_detail", case_id=case_id)
 
-    # ПРАВИЛО: пункт с привязанной оплатой удалять нельзя
     if item.has_payments or item.paid_amount > 0:
         messages.error(request, "Нельзя удалить пункт графика, к которому привязана оплата.")
         return redirect("crm:case_detail", case_id=case_id)
@@ -2027,11 +1965,10 @@ def schedule_generate(request, plan_id):
         return redirect("crm:case_detail", case_id=case_id)
 
     with transaction.atomic():
-        plan.schedule.all().delete()  # безопасно: оплат нет (проверено выше)
+        plan.schedule.all().delete()  
         items = []
         offset = 0
         if advance > 0:
-            # Первый пункт — аванс, автоматически
             items.append(PaymentSchedule(
                 plan=plan, due_date=start_date, planned_amount=advance, is_advance=True,
                 comment="Аванс",
@@ -2040,7 +1977,6 @@ def schedule_generate(request, plan_id):
         remainder = total - advance
         base = (remainder / parts).quantize(Decimal("0.01"))
         for i in range(parts):
-            # Хвост копеек кладём в последний платёж — сумма сходится копейка в копейку
             amount = base if i < parts - 1 else (remainder - base * (parts - 1))
             items.append(PaymentSchedule(
                 plan=plan, due_date=add_months(start_date, i + offset),
@@ -2087,8 +2023,7 @@ def manager_report(request):
     for u in (curators.filter(pk=curator_id) if curator_id else curators):
         rows.append((u.get_full_name() or u.username, compute_curator_metrics(u, start, end, today, now)))
 
-    # Агрегированный summary для старой части шаблона (строки 1 и 2 с плитками)
-    dept_metrics = rows[0][1]  # первая строка = ОТДЕЛ
+    dept_metrics = rows[0][1]  
     summary = {
         "active_now": dept_metrics["now"]["active"],
         "transferred": dept_metrics["funnel"]["transferred"],
@@ -2105,7 +2040,6 @@ def manager_report(request):
         "no_next": dept_metrics["now"]["no_next"],
     }
 
-    # Детализация сопровождений за период
     cases_qs = CuratorCase.objects.filter(curator__role=CustomUser.Role.CURATOR)
     if curator_id:
         cases_qs = cases_qs.filter(curator_id=curator_id)
@@ -2130,7 +2064,7 @@ def manager_report(request):
         "curator_id": curator_id, "status_filter": status_filter,
         "curators": curators, "statuses": CuratorCase.Status.choices,
         "rows": rows, "detail_rows": detail_rows,
-        "summary": summary,  # ← для плиток в строках 1 и 2
+        "summary": summary,  
     })
 
 
@@ -2148,7 +2082,6 @@ def day_plan(request):
     if mine_only:
         base = base.filter(assignee=request.user)
 
-    # В сетку: просроченные + сегодняшние (открытые) и сделанные сегодня
     grid_tasks = sorted(
         list(base.filter(status=Task.TaskStatus.PENDING, due_date__date__lte=today))
         + list(base.filter(status=Task.TaskStatus.DONE, due_date__date=today)),
@@ -2339,7 +2272,7 @@ def patients_board(request):
 
 @login_required
 def doc_checks(request):
-    """Проверка документов (макет v2, реестр ТЗ п.12)."""
+    """Проверка документов."""
     cases = CuratorCase.objects.filter(
         status__in=[CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS]
     ).select_related("patient", "plan", "curator").prefetch_related("document_checks")
@@ -2364,7 +2297,7 @@ def doc_checks(request):
 
 @manager_required
 def doc_check_create(request):
-    """Внести проверку; расхождение порождает задачу куратору (ТЗ п.18)."""
+    """Внести проверку; расхождение порождает задачу куратору."""
     if request.method != "POST":
         return redirect("crm:doc_checks")
 
@@ -2514,7 +2447,6 @@ def patient_detail(request, patient_id):
     patient = get_object_or_404(Patient, id=patient_id)
 
     contracts = patient.contracts.order_by("-date", "-id")
-    # doctor убран (больше не FK), doctors — через prefetch_related
     plans = TreatmentPlan.objects.filter(
         patient=patient
     ).select_related("contract").prefetch_related("doctors").order_by("-id")
@@ -2535,7 +2467,7 @@ def patient_detail(request, patient_id):
 
 
 def touch_case(case):
-    """Отметить активность по КПЛ (ТЗ гл.6, контроль бездействия)."""
+    """Отметить активность по КПЛ."""
     CuratorCase.objects.filter(pk=case.pk).update(last_activity_at=timezone.now())
 
 
@@ -2553,7 +2485,7 @@ DEVIATION_LABELS = [
 
 
 def collect_deviations(curator=None):
-    """ТЗ гл.6: автоматический контроль отклонений по активным КПЛ."""
+    """Автоматический контроль отклонений по активным КПЛ."""
     now = timezone.now()
     today = now.date()
     t_inact = get_threshold("INACTIVITY_DAYS")
@@ -2623,7 +2555,7 @@ def settings_view(request):
         return redirect("crm:home")
 
     for key, value, desc in DEFAULT_THRESHOLDS:
-        get_threshold(key)  # гарантирует существование строк
+        get_threshold(key) 
 
     if request.method == "POST":
         for row in SystemSetting.objects.all():
@@ -2648,7 +2580,7 @@ def settings_view(request):
 
 @manager_required
 def motivation_schemes(request):
-    """Реестр моделей мотивации: ставки и даты действия (ТЗ гл.8)."""
+    """Реестр моделей мотивации: ставки и даты действия."""
     if request.method == "POST":
         scheme = MotivationScheme.objects.create(
             name=request.POST.get("name", "").strip() or "Модель без названия",
@@ -2697,7 +2629,7 @@ def case_reassign(request, case_id):
 
 @login_required
 def task_next_create(request, task_id):
-    """Быстрое создание следующей задачи по тому же КПЛ (ТЗ гл.4)."""
+    """Быстрое создание следующей задачи по тому же КПЛ."""
     task = get_object_or_404(
         Task.objects.select_related("case", "case__curator", "assignee"), id=task_id
     )
@@ -2755,7 +2687,6 @@ def registers(request):
     plan_ids = TreatmentPlan.objects.filter(cases__in=cases).distinct().values_list("id", flat=True)
     patient_ids = cases.values_list("patient_id", flat=True)
 
-    # ---- Реестры за выбранный период (по дате события) ----
     payments = Payment.objects.filter(plan_id__in=plan_ids, payment_date__range=(start, end)).select_related("plan", "plan__patient")
     schedule = PaymentSchedule.objects.filter(plan_id__in=plan_ids, due_date__range=(start, end)).select_related("plan", "plan__patient")
     workorders = WorkOrder.objects.filter(plan_id__in=plan_ids, closed_date__range=(start, end)).select_related("plan", "plan__patient")
@@ -2765,7 +2696,6 @@ def registers(request):
     visits = Visit.objects.filter(patient_id__in=patient_ids, visit_date__range=(start, end)).select_related("patient", "category", "case")
     adjustments = FinanceAdjustment.objects.filter(patient_id__in=patient_ids, event_date__range=(start, end)).select_related("patient", "case")
 
-    # ---- Недельная и месячная статистика (независимо от выбранного периода) ----
     def stats(s, e):
         p = Payment.objects.filter(plan_id__in=plan_ids, payment_date__range=(s, e))
         w = WorkOrder.objects.filter(plan_id__in=plan_ids, closed_date__range=(s, e))
@@ -2859,14 +2789,13 @@ def _period_months(start, end):
 
 
 def compute_curator_metrics(curator, start, end, today, now):
-    """Все метрики отчёта за период + текущее состояние (ТЗ гл.9)."""
+    """Все метрики отчёта за период + текущее состояние."""
     cases = CuratorCase.objects.all()
     if curator:
         cases = cases.filter(curator=curator)
     plans = TreatmentPlan.objects.filter(cases__in=cases).distinct()
     live_plans = plans.exclude(cases__status=CuratorCase.Status.LOST)
 
-    # План и мотивация: месяцы, пересекающие период
     month_q = Q()
     for y, m in _period_months(start, end):
         month_q |= Q(year=y, month=m)
@@ -2875,12 +2804,9 @@ def compute_curator_metrics(curator, start, end, today, now):
     plan_sum = mps.aggregate(s=Coalesce(Sum("plan_amount"), Decimal("0")))["s"]
     motivation = sum((mp.total_payout for mp in mps), Decimal("0"))
 
-    # Факт (К1) за период, отказы исключены
     agreed_qs = live_plans.filter(agreement_date__range=(start, end))
     fact = agreed_qs.aggregate(s=Coalesce(Sum("agreed_sum"), Decimal("0")))["s"]
     agreed_count = agreed_qs.count()
-
-    # Воронка за период по датам событий
     transferred = cases.filter(created_at__date__range=(start, end)).count()
     presented_qs = plans.filter(presentation_date__range=(start, end))
     presented = presented_qs.count()
@@ -2917,7 +2843,6 @@ def compute_curator_metrics(curator, start, end, today, now):
         case__in=cases, status=Task.TaskStatus.DONE, completed_at__date__range=(start, end)
     ).count()
 
-    # Текущее состояние (на сегодня), не за период
     active_now = cases.filter(status__in=ACTIVE_STATUSES).count()
     remainder_now = sum((p.remaining for p in live_plans.filter(agreement_date__isnull=False)), Decimal("0"))
     overdue_now = Task.objects.filter(case__in=cases, status=Task.TaskStatus.PENDING, due_date__lt=now).count()
@@ -2991,15 +2916,13 @@ def manager_report_export(request):
 
 @login_required
 def doc_checks(request):
-    """Реестр проверки планов и документов (ТЗ гл.9)."""
+    """Реестр проверки планов и документов."""
     status_filter = request.GET.get("check_status", "")
     curator_id = request.GET.get("curator", "")
 
     cases = CuratorCase.objects.filter(
         status__in=[CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS]
     ).select_related("patient", "plan", "plan__doctor", "curator").prefetch_related("document_checks")
-    # ↑ убран "doctor" (его больше нет как FK), добавлен "plan__doctor" для совместимости
-    # но plan__doctor тоже не нужен (M2M), поэтому можно вообще убрать:
     cases = CuratorCase.objects.filter(
         status__in=[CuratorCase.Status.AGREED, CuratorCase.Status.IN_PROGRESS]
     ).select_related("patient", "plan", "curator").prefetch_related("document_checks", "plan__doctors")
@@ -3016,7 +2939,7 @@ def doc_checks(request):
             "case": c,
             "docs": docs_state(c),
             "check": c.document_checks.first(),
-            "doctors": list(p.doctors.all()),  # ← M2M
+            "doctors": list(p.doctors.all()), 
             "plan_type": p.get_plan_type_display() or "—",
             "initial_sum": p.initial_sum,
             "presentation_sum": p.presentation_sum,
@@ -3027,14 +2950,12 @@ def doc_checks(request):
             "contract": c.patient.contracts.filter(status=Contract.Status.ACTIVE).first(),
         })
 
-    # Счётчики для чипов-фильтров
     counts = {"none": 0, "NOT_CHECKED": 0, "RECEIVED": 0, "CHECKED": 0, "DISCREPANCY": 0}
     for r in rows:
         counts[r["check"].status if r["check"] else "none"] += 1
     counts["total"] = len(rows)
     counts["unchecked"] = counts["none"] + counts["NOT_CHECKED"]
 
-    # Фильтр по результату проверки
     if status_filter == "unchecked":
         rows = [r for r in rows if not r["check"] or r["check"].status == DocumentCheck.Status.NOT_CHECKED]
     elif status_filter:
@@ -3063,21 +2984,20 @@ def doc_checks(request):
     })
 
 def _resolve_period(request, today):
-    """Пресеты периодов отчётов (ТЗ гл.9): день, неделя, месяц, квартал, произвольный."""
+    """Пресеты периодов отчётов: день, неделя, месяц, квартал, произвольный."""
     period = request.GET.get("period", "month")
 
     if period == "day":
         return today, today
 
     if period == "week":
-        start = today - timedelta(days=today.weekday())   # понедельник
-        return start, start + timedelta(days=6)           # воскресенье
+        start = today - timedelta(days=today.weekday())   
+        return start, start + timedelta(days=6)          
 
     if period == "quarter":
         q_start_month = (today.month - 1) // 3 * 3 + 1
         start = date(today.year, q_start_month, 1)
         end_month = q_start_month + 2
-        # последний день последнего месяца квартала
         end = (date(today.year, end_month, 28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
         return start, end
 
@@ -3088,7 +3008,6 @@ def _resolve_period(request, today):
             start, end = end, start
         return start, end
 
-    # по умолчанию — текущий месяц, конец = сегодня
     return today.replace(day=1), today
 
 
@@ -3144,7 +3063,7 @@ def _audit_queryset(request, start, end):
 
 @manager_required
 def audit_log(request):
-    """Общий журнал работы: критичные события, категории, люди, подмены (ТЗ гл.11)."""
+    """Общий журнал работы: критичные события, категории, люди, подмены."""
     if request.user.role not in LEAD_ROLES:
         messages.error(request, "Раздел доступен руководителям.")
         return redirect("crm:home")
@@ -3156,7 +3075,6 @@ def audit_log(request):
 
     qs = _audit_queryset(request, start, end)
 
-    # Счётчики для чипов (по периоду, без фильтров действия/подмены/критичности)
     base = AuditLog.objects.filter(created_at__date__range=(start, end))
     actor_id = request.GET.get("actor", "")
     if actor_id:

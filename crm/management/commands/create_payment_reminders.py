@@ -9,7 +9,7 @@ from crm.models import PaymentSchedule, Task, log_action, AuditLog
 
 
 class Command(BaseCommand):
-    help = "Создаёт кураторам задачи-напоминания по наступившим датам платежей (ТЗ гл.6)"
+    help = "Создаёт кураторам задачи-напоминания по наступившим датам платежей"
 
     def handle(self, *args, **options):
         today = timezone.now().date()

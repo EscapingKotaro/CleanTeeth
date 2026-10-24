@@ -5,7 +5,6 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Системные зависимости для psycopg2 и Pillow
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
@@ -18,7 +17,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
-# Собираем статику на этапе сборки
+
 RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 8000

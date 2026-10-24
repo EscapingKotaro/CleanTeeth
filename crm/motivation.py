@@ -1,9 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
 
-# ============================================================
-# КОНФИГ МОТИВАЦИИ (ТЗ п.14: формулы вынесены в конфигурацию).
-# Меняется мотивационная модель — правим только этот файл.
-# ============================================================
+
 BONUS_1_RATE = Decimal("0.007")                    # 0,7% от «Итого КПЛ для расчёта»
 BONUS_2_RATE = Decimal("0.002")                    # 0,2% от «Итого заказ-нарядов»
 BONUS_3_PENALTY_RATE = Decimal("0.2") * BONUS_1_RATE   # −0,2 × 0,7% от (план − КПЛ) при <100%
@@ -14,15 +11,10 @@ DAILY_RATE = Decimal("1000")                       # ₽ за рабочий д�
 
 
 def rub(value: Decimal) -> Decimal:
-    """Округление до рубля, как в Google-файле."""
     return value.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
 def calculate_bonuses(monthly_plan):
-    """
-    Бонус 1 / 2 / 3 по формулам Google-файла мотивации.
-    Возвращает НЕокруглённые Decimal (округляем на отображении и в итогах).
-    """
     plan = monthly_plan.plan_amount or Decimal(0)
     k1 = monthly_plan.fact_amount or Decimal(0)
     kpl = monthly_plan.kpl_for_calc or Decimal(0)

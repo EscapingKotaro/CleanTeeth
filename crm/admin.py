@@ -57,7 +57,7 @@ class DoctorAdmin(admin.ModelAdmin):
         "id", "last_name", "first_name", "middle_name",
         "phone", "email", "is_active", "ident_doctor_id",
     )
-    list_filter = ("is_active",)                      # ← был строкой/с direction
+    list_filter = ("is_active",)                      
     search_fields = ("last_name", "first_name", "middle_name", "phone", "email", "ident_doctor_id")
     ordering = ("last_name", "first_name")
 
@@ -91,15 +91,15 @@ class TreatmentPlanAdmin(admin.ModelAdmin):
         "presentation_date", "agreement_date",
         "is_signed_by_patient", "is_schedule_signed", "created_at",
     )
-    list_filter = ("plan_type", "is_signed_by_patient", "is_schedule_signed")  # ← 'doctor' убран
+    list_filter = ("plan_type", "is_signed_by_patient", "is_schedule_signed") 
     search_fields = ("patient__last_name", "patient__first_name", "patient__phone", "ident_treatment_plan_id")
-    list_select_related = ("patient",)                # ← кортеж, не строка
-    raw_id_fields = ("patient", "contract")           # ← вместо autocomplete (не требует search_fields у связанных админок)
-    filter_horizontal = ("doctors",)                    # удобное назначение нескольких врачей
+    list_select_related = ("patient",)              
+    raw_id_fields = ("patient", "contract")           
+    filter_horizontal = ("doctors",)                    
     readonly_fields = ("created_at", "updated_at")
 
     fieldsets = (
-        ("Основное", {"fields": ("patient", "doctors", "contract", "plan_type")}),          # ← fields кортежем
+        ("Основное", {"fields": ("patient", "doctors", "contract", "plan_type")}),         
         ("Суммы", {"fields": ("initial_sum", "presentation_sum", "agreed_sum")}),
         ("Даты и результаты", {"fields": ("presentation_date", "agreement_date", "presentation_result", "start_date", "end_date")}),
         ("Подписи", {"fields": ("is_signed_by_patient", "is_schedule_signed")}),
@@ -266,7 +266,7 @@ class SystemSettingAdmin(admin.ModelAdmin):
     list_display = ("key", "value", "description")
     search_fields = ("key", "description")
     ordering = ("key",)
-    list_editable = ("value",)   # правка порогов прямо из списка
+    list_editable = ("value",)   
 
 
 @admin.register(MotivationScheme)

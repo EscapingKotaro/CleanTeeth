@@ -6,9 +6,7 @@ from django.utils.functional import cached_property
 from .motivation import calculate_bonuses, rub, DAILY_RATE
 from decimal import Decimal
 
-# ============================================================
-# НАПРАВЛЕНИЯ ЛЕЧЕНИЯ (единый справочник)
-# ============================================================
+
 
 class Direction(models.TextChoices):
     THERAPY = "THERAPY", "Терапия"
@@ -18,9 +16,7 @@ class Direction(models.TextChoices):
 
 
 
-# ============================================================
-# ПОЛЬЗОВАТЕЛЬ
-# ============================================================
+
 
 class CustomUser(AbstractUser):
     """Кастомный пользователь системы с ролями."""
@@ -64,7 +60,6 @@ class CustomUser(AbstractUser):
 
         super().save(*args, **kwargs)
 
-        # --- Аудит ---
         if is_new:
             log_action(
                 action=AuditLog.Action.CREATE,
@@ -108,7 +103,6 @@ class Doctor(models.Model):
 
     is_active = models.BooleanField("Активен в клинике", default=True)
 
-    # Интеграция с iDent
     ident_doctor_id = models.CharField(
         "ID врача в iDent", max_length=50, blank=True, null=True, unique=True
     )
@@ -126,9 +120,7 @@ class Doctor(models.Model):
         return f"{self.last_name} {self.first_name} {self.middle_name}".strip()
 
 
-# ============================================================
-# ПАЦИЕНТ / ДОГОВОР / ПЛАН ЛЕЧЕНИЯ (из прошлой итерации)
-# ============================================================
+
 class PatientCategory(models.Model):
     """Категория пациента (первичка/повторники и т.д.)."""
     title = models.CharField("Категория", max_length=100)
@@ -228,7 +220,7 @@ class TreatmentPlan(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    # В поля модели:
+
     is_schedule_signed = models.BooleanField("График платежей подписан", default=False)
 
     contract = models.ForeignKey(
@@ -237,7 +229,6 @@ class TreatmentPlan(models.Model):
         verbose_name="Договор",
     )
 
-    # --- Финансовые свойства ---
     @property
     def advance_paid(self):
         """Сумма внесённых авансов (аванс входит в график — п.10)."""
@@ -261,7 +252,7 @@ class TreatmentPlan(models.Model):
     def has_advance(self):
         return self.advance_paid > 0
 
-    # --- Направления: контроль суммы (п.5.1) ---
+
     @property
     def directions_total(self):
         from django.db.models import Sum
@@ -274,7 +265,7 @@ class TreatmentPlan(models.Model):
             return False
         return self.directions_total != (self.agreed_sum or 0)
 
-    # --- Чек-лист «план готов к работе» (п.5.3) ---
+
     @property
     def is_ready_for_work(self):
         if not self.agreement_date:
@@ -329,9 +320,7 @@ class LostReason(models.Model):
 
     def __str__(self):
         return self.title
-# ============================================================
-# КУРАТОРСКИЙ КЕЙС
-# ============================================================
+
 
 class CuratorCase(models.Model):
     """Объект движения по CRM-воронке.
@@ -357,7 +346,7 @@ class CuratorCase(models.Model):
     ]
     NEXT_STATUSES = {
         Status.TRANSFERRED: [Status.PRESENTED],
-        Status.PRESENTED: [Status.IN_DECISION, Status.AGREED],   # ← развилка
+        Status.PRESENTED: [Status.IN_DECISION, Status.AGREED], 
         Status.IN_DECISION: [Status.AGREED],
         Status.AGREED: [Status.IN_PROGRESS],
         Status.IN_PROGRESS: [Status.COMPLETED],
@@ -394,11 +383,11 @@ class CuratorCase(models.Model):
         default=Status.TRANSFERRED,
     )
 
-    # Статус «Решение в работе»
+
     decision_reason = models.CharField("Почему решение не принято", max_length=255, blank=True)
     decision_comment = models.TextField("Комментарий к решению", blank=True)
 
-    # Статус «Лечение в процессе»
+
     next_control_date = models.DateField("Следующая контрольная дата", null=True, blank=True)
     next_action_date = models.DateTimeField("Дата следующего действия", null=True, blank=True)
 
@@ -406,10 +395,10 @@ class CuratorCase(models.Model):
     status_changed_at = models.DateTimeField("Когда сменился статус", null=True, blank=True, auto_now_add=True)
     last_activity_at = models.DateTimeField("Последняя активность", null=True, blank=True, auto_now_add=True)
 
-    # Статус «Лечение завершено»
+
     completed_at = models.DateField("Дата закрытия кейса", null=True, blank=True)
 
-    # --- Поля для закрывающего исхода "Отказ / потерян" ---
+  
     lost_date = models.DateField("Дата отказа", null=True, blank=True)
     lost_reason = models.ForeignKey(
         LostReason,
@@ -494,7 +483,7 @@ from decimal import Decimal
 
 class MotivationScheme(models.Model):
     """
-    Версия модели мотивации с датой начала действия (ТЗ гл.8).
+    Версия модели мотивации с датой начала действия.
     Исторические формулы разные, поэтому модель выбирается ВРУЧНУЮ
     при назначении месячного плана — автоматически не подставляется.
     """
@@ -546,7 +535,7 @@ class CuratorMonthlyPlan(models.Model):
         CustomUser, on_delete=models.CASCADE, related_name="monthly_plans", verbose_name="Куратор"
     )
     year = models.PositiveIntegerField("Год")
-    month = models.PositiveIntegerField("Месяц")  # 1–12
+    month = models.PositiveIntegerField("Месяц")  
     plan_amount = models.DecimalField("Индивидуальный план, ₽", max_digits=12, decimal_places=2, default=0)
     adjustments = models.DecimalField(
         "Корректировки (возвраты по КПЛ / мат. капитал), ₽",
@@ -582,7 +571,6 @@ class CuratorMonthlyPlan(models.Model):
     def __str__(self):
         return f"{self.curator} · {self.month:02d}.{self.year} · план {self.plan_amount}"
 
-    # ---------- ФАКТ (К1) ----------
     @property
     def fact_amount(self):
         """К1 = сумма согласованных планов куратора за этот месяц (ТЗ п.11)."""
@@ -614,7 +602,6 @@ class CuratorMonthlyPlan(models.Model):
     def remaining(self):
         return self.plan_amount - self.fact_amount
 
-    # ---------- ТЕМП И ПРОГНОЗ (ТЗ п.13) ----------
     @property
     def is_current(self):
         today = timezone.now().date()
@@ -647,7 +634,6 @@ class CuratorMonthlyPlan(models.Model):
         days_in_month = calendar.monthrange(self.year, self.month)[1]
         return round(self.fact_amount / today.day * days_in_month, 2)
 
-    # ---------- БОНУСЫ (ТЗ п.14) ----------
 
     @cached_property
     def bonuses_raw(self):
@@ -715,7 +701,7 @@ from datetime import datetime, timedelta
 
 
 class Task(models.Model):
-    """Операционное действие по кейсу. НЕ является статусом воронки."""
+    """Операционное действие по кейсу."""
 
     class TaskType(models.TextChoices):
         CONTACT = "CONTACT", "Связаться с пациентом"
@@ -786,7 +772,7 @@ class Task(models.Model):
 
 
 class AuditLog(models.Model):
-    """Журнал работы с пациентом (ТЗ гл.11)."""
+    """Журнал работы с пациентом."""
 
     class Action(models.TextChoices):
         CREATE = "CREATE", "Создание"
@@ -1050,10 +1036,10 @@ class VisitCategory(models.Model):
 
 
 class Visit(models.Model):
-    """Приём/посещение пациента (реестр приёмов, ТЗ гл.7)."""
+    """Приём/посещение пациента (реестр приёмов)."""
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="visits", verbose_name="Пациент")
     case = models.ForeignKey("CuratorCase", on_delete=models.SET_NULL, null=True, blank=True, related_name="visits", verbose_name="КПЛ")
-    visit_date = models.DateField("Дата приёма")          # ← дата СОБЫТИЯ
+    visit_date = models.DateField("Дата приёма")         
     category = models.ForeignKey(VisitCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="visits", verbose_name="Категория посещения")
     diagnosis = models.TextField("Диагностика", blank=True)
     comment = models.TextField("Комментарий", blank=True)
@@ -1070,7 +1056,7 @@ class Visit(models.Model):
 
 
 class FinanceAdjustment(models.Model):
-    """Возврат / корректировка, включая материнский капитал (ТЗ гл.7)."""
+    """Возврат / корректировка, включая материнский капитал."""
 
     class Kind(models.TextChoices):
         REFUND_KPL = "REFUND_KPL", "Возврат по КПЛ"
@@ -1082,7 +1068,7 @@ class FinanceAdjustment(models.Model):
     case = models.ForeignKey("CuratorCase", on_delete=models.SET_NULL, null=True, blank=True, related_name="adjustments", verbose_name="КПЛ")
     kind = models.CharField("Тип", max_length=20, choices=Kind.choices, default=Kind.OTHER)
     amount = models.DecimalField("Сумма (возврат — со знаком минус)", max_digits=10, decimal_places=2)
-    event_date = models.DateField("Дата события")            # ← дата СОБЫТИЯ
+    event_date = models.DateField("Дата события")           
     comment = models.TextField("Комментарий", blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="adjustments")
     created_at = models.DateTimeField("Создано", auto_now_add=True)
